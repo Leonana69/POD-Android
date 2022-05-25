@@ -222,29 +222,19 @@ class MainActivity : AppCompatActivity() {
         val poseDetector = when (modelPos) {
             0 -> {
                 // MoveNet Lightning (SinglePose)
-                showDetectionScore(true)
                 MoveNet.create(this, device, ModelType.Lightning)
             }
             1 -> {
                 // MoveNet Thunder (SinglePose)
-                showDetectionScore(true)
                 MoveNet.create(this, device, ModelType.Thunder)
             }
             2 -> {
                 // PoseNet (SinglePose)
-                showDetectionScore(true)
                 PoseNet.create(this, device)
             }
-            else -> {
-                null
-            }
+            else -> { null }
         }
         poseDetector?.let { detector -> cameraSource?.setDetector(detector) }
-    }
-
-    // Show/hide the detection score.
-    private fun showDetectionScore(isVisible: Boolean) {
-        tvScore.visibility = if (isVisible) View.VISIBLE else View.GONE
     }
 
     /**
