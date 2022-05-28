@@ -84,6 +84,21 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="5dp"
+            android:text="@string/btn_start"
+            />
+        <Button
+            android:id="@+id/btn_stop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="5dp"
+            android:text="@string/btn_stop"
+            />
+
     </LinearLayout>
 
     <FrameLayout

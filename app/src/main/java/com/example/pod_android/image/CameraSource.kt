@@ -43,7 +43,7 @@ class CameraSource(
         private const val PREVIEW_HEIGHT = 480
 
         /** Threshold for confidence score. */
-        private const val MIN_CONFIDENCE = .2f
+        private const val MIN_PERSON_CONFIDENCE = .2f
         private const val TAG = "Camera Source"
     }
 
@@ -229,7 +229,7 @@ class CameraSource(
     private fun visualize(persons: List<Person>, bitmap: Bitmap) {
         val bodyBitmap = VisualizationUtils.drawBodyKeyPoints(
             bitmap,
-            persons.filter { it.score > MIN_CONFIDENCE })
+            persons.filter { it.score > MIN_PERSON_CONFIDENCE })
 
         var handBitmap: Bitmap? = null
         handDetector?.handsResult?.let {

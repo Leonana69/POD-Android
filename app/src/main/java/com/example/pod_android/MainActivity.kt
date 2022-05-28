@@ -54,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mHandsViewFL: FrameLayout
     private lateinit var spnDevice: Spinner
     private lateinit var spnModel: Spinner
+    private lateinit var mBtnStart: Button
+    private lateinit var mBtnStop: Button
     private var cameraSource: CameraSource? = null
 
     /** request permission */
@@ -64,10 +66,9 @@ class MainActivity : AppCompatActivity() {
                 ActivityResultContracts.RequestPermission()
             ) { isGranted: Boolean ->
                 if (isGranted) {
-                    openCamera()
+//                    openCamera()
                 } else {
-                    ErrorDialog.newInstance(getString(R.string.tfe_pe_request_permission))
-                        .show(supportFragmentManager, "Dialog")
+                    Toast.makeText(this, "Request camera permission failed", Toast.LENGTH_SHORT).show()
                 }
             }
 
@@ -124,6 +125,9 @@ class MainActivity : AppCompatActivity() {
         spnModel = findViewById(R.id.spnModel)
         spnDevice = findViewById(R.id.spnDevice)
         surfaceView = findViewById(R.id.surfaceView)
+        mBtnStart = findViewById(R.id.btn_start)
+        mBtnStop = findViewById(R.id.btn_stop)
+
         initSpinner()
         spnModel.setSelection(modelPos)
         spnDevice.setSelection(devicePos)
@@ -133,8 +137,8 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         openCamera()
-        // start and bind service
 
+        // start and bind service
         val mIntent = Intent(this, FloatingService::class.java)
         startService(mIntent)
         bindService(mIntent, mConnection, BIND_AUTO_CREATE)
@@ -149,10 +153,6 @@ class MainActivity : AppCompatActivity() {
         cameraSource?.close()
         cameraSource = null
         super.onPause()
-    }
-
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     // open camera
@@ -189,27 +189,20 @@ class MainActivity : AppCompatActivity() {
         if (devicePos == position) return
         devicePos = position
 
-        val targetDevice = when (position) {
+        device = when (position) {
             0 -> Device.CPU
             1 -> Device.GPU
             2 -> Device.NNAPI
             else -> return
         }
-
-        if (device == targetDevice) return
-        device = targetDevice
         createPoseDetector()
     }
 
     private var changeModelListener = object : AdapterView.OnItemSelectedListener {
+        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+            changeModel(position)
+        }
         override fun onNothingSelected(parent: AdapterView<*>?) {}
-
-        override fun onItemSelected(
-            parent: AdapterView<*>?,
-            view: View?,
-            position: Int,
-            id: Long
-        ) { changeModel(position) }
     }
 
     private var changeDeviceListener = object : AdapterView.OnItemSelectedListener {
@@ -219,12 +212,10 @@ class MainActivity : AppCompatActivity() {
         override fun onNothingSelected(parent: AdapterView<*>?) {}
     }
 
-    // Initialize spinners to let user select model/accelerator/tracker.
+    // Initialize spinners to let user select model/accelerator.
     private fun initSpinner() {
-        ArrayAdapter.createFromResource(
-            this,
-            R.array.tfe_pe_models_array,
-            android.R.layout.simple_spinner_item
+        ArrayAdapter.createFromResource(this,
+            R.array.tfe_pe_models_array, android.R.layout.simple_spinner_item
         ).also { adapter ->
             // Specify the layout to use when the list of choices appears
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -233,12 +224,10 @@ class MainActivity : AppCompatActivity() {
             spnModel.onItemSelectedListener = changeModelListener
         }
 
-        ArrayAdapter.createFromResource(
-            this,
+        ArrayAdapter.createFromResource(this,
             R.array.tfe_pe_device_name, android.R.layout.simple_spinner_item
         ).also { adaper ->
             adaper.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-
             spnDevice.adapter = adaper
             spnDevice.onItemSelectedListener = changeDeviceListener
         }
@@ -246,18 +235,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun createPoseDetector() {
         val poseDetector = when (modelPos) {
-            0 -> {
-                // MoveNet Lightning (SinglePose)
-                MoveNet.create(this, device, ModelType.Lightning)
-            }
-            1 -> {
-                // MoveNet Thunder (SinglePose)
-                MoveNet.create(this, device, ModelType.Thunder)
-            }
-            2 -> {
-                // PoseNet (SinglePose)
-                PoseNet.create(this, device)
-            }
+            0 -> { MoveNet.create(this, device, ModelType.Lightning) }
+            1 -> { MoveNet.create(this, device, ModelType.Thunder) }
+            2 -> { PoseNet.create(this, device) }
             else -> { null }
         }
         poseDetector?.let { detector -> cameraSource?.setPoseDetector(detector) }
@@ -266,28 +246,5 @@ class MainActivity : AppCompatActivity() {
     private fun createHandDetector() {
         val handEstimator: MediapipeHands = MediapipeHands(this, mHandsViewFL)
         cameraSource?.setHandDetector(handEstimator)
-    }
-
-    /**
-     * Shows an error message dialog.
-     */
-    class ErrorDialog : DialogFragment() {
-        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
-            AlertDialog.Builder(activity)
-                .setMessage(requireArguments().getString(ARG_MESSAGE))
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    // do nothing
-                }
-                .create()
-
-        companion object {
-            @JvmStatic
-            private val ARG_MESSAGE = "message"
-
-            @JvmStatic
-            fun newInstance(message: String): ErrorDialog = ErrorDialog().apply {
-                arguments = Bundle().apply { putString(ARG_MESSAGE, message) }
-            }
-        }
     }
 }
