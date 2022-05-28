@@ -50,4 +50,8 @@ dependencies {
     implementation 'org.tensorflow:tensorflow-lite-support:0.3.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.2.0'
+
+    // MediaPipe Hands Solution.
+    implementation 'com.google.mediapipe:solution-core:latest.release'
+    implementation 'com.google.mediapipe:hands:latest.release'
 }

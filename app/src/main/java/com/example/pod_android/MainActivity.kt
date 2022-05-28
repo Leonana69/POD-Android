@@ -3,24 +3,35 @@ package com.example.pod_android
 import android.Manifest
 import android.app.AlertDialog
 import android.app.Dialog
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import androidx.appcompat.app.AppCompatActivity
+import android.net.Uri
 import android.os.Bundle
-import android.os.Process
+import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.example.pod_android.data.Device
+import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
+import com.example.pod_android.pose.ModelType
+import com.example.pod_android.pose.MoveNet
+import com.example.pod_android.pose.PoseNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+    private val TAG = "MainActivity"
     /** A [SurfaceView] for camera preview.   */
     private lateinit var surfaceView: SurfaceView
 
@@ -30,28 +41,74 @@ class MainActivity : AppCompatActivity() {
      * 2 == PoseNet model
      **/
     private var modelPos = 0
-    /** Default device is GPU */
+    /** Default device is 1
+     * 0 == CPU
+     * 1 == GPU
+     * 2 == NNAPI
+     **/
     private var devicePos = 1
     private var device = Device.GPU
 
     private lateinit var tvScore: TextView
     private lateinit var tvFPS: TextView
+    private lateinit var mHandsViewFL: FrameLayout
     private lateinit var spnDevice: Spinner
     private lateinit var spnModel: Spinner
     private var cameraSource: CameraSource? = null
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                // Permission is granted.
-                openCamera()
-            } else {
-                ErrorDialog.newInstance(getString(R.string.tfe_pe_request_permission))
-                    .show(supportFragmentManager, "Dialog")
+    /** request permission */
+    private fun requestPermission() {
+        /** request camera permission */
+        val requestPermissionLauncher =
+            registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
+                if (isGranted) {
+                    openCamera()
+                } else {
+                    ErrorDialog.newInstance(getString(R.string.tfe_pe_request_permission))
+                        .show(supportFragmentManager, "Dialog")
+                }
             }
+
+        /** request overlay permission */
+        val overlayPermissionLauncher =
+            registerForActivityResult(
+                ActivityResultContracts.StartActivityForResult()
+            ) {
+                // the ACTION_MANAGE_OVERLAY_PERMISSION won't return anything
+                // do not need to check the resultCode
+                if (Settings.canDrawOverlays(this)) {
+
+                } else
+                    Toast.makeText(this, "Request overlay permission failed", Toast.LENGTH_SHORT).show()
+            }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED)
+            requestPermissionLauncher.launch(Manifest.permission.CAMERA)
+
+        if (!Settings.canDrawOverlays(this)) {
+            Log.d(TAG, "requestPermission: overlay")
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName"))
+            overlayPermissionLauncher.launch(intent)
         }
+    }
+
+    var mFloatingService: FloatingService? = null
+    var mBounded = false
+    private var mConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            mBounded = true
+            val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
+            mFloatingService = mFSBinder.getService()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            mBounded = false
+            mFloatingService = null
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,19 +119,23 @@ class MainActivity : AppCompatActivity() {
         // find elements
         tvScore = findViewById(R.id.tvScore)
         tvFPS = findViewById(R.id.tvFps)
+        mHandsViewFL = findViewById(R.id.fl_handsView)
         spnModel = findViewById(R.id.spnModel)
         spnDevice = findViewById(R.id.spnDevice)
         surfaceView = findViewById(R.id.surfaceView)
         initSpinner()
         spnModel.setSelection(modelPos)
         spnDevice.setSelection(devicePos)
-        if (!isCameraPermissionGranted())
-            requestPermission()
+        requestPermission()
     }
 
     override fun onStart() {
         super.onStart()
         openCamera()
+        // start and bind service
+        val mIntent = Intent(this, FloatingService::class.java)
+        startService(mIntent)
+        bindService(mIntent, mConnection, BIND_AUTO_CREATE)
     }
 
     override fun onResume() {
@@ -88,42 +149,12 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    // check if permission is granted or not.
-    private fun isCameraPermissionGranted(): Boolean {
-        return checkPermission(
-            Manifest.permission.CAMERA,
-            Process.myPid(),
-            Process.myUid()
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requestPermission() {
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.CAMERA
-            ) -> {
-                // You can use the API that requires the permission.
-                openCamera()
-            }
-            else -> {
-                // You can directly ask for the permission.
-                // The registered ActivityResultCallback gets the result of this request.
-                requestPermissionLauncher.launch(
-                    Manifest.permission.CAMERA
-                )
-            }
-        }
-    }
-
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     // open camera
     private fun openCamera() {
-        if (!isCameraPermissionGranted())
-            return
         if (cameraSource == null) {
             cameraSource =
                 CameraSource(this, surfaceView, object : CameraSource.CameraSourceListener {
@@ -140,14 +171,15 @@ class MainActivity : AppCompatActivity() {
                 cameraSource?.initCamera()
             }
         }
-        createPoseEstimator()
+        createPoseDetector()
+        createHandDetector()
     }
 
     // Change model when app is running
     private fun changeModel(position: Int) {
         if (modelPos == position) return
         modelPos = position
-        createPoseEstimator()
+        createPoseDetector()
     }
 
     // Change device (accelerator) type when app is running
@@ -164,7 +196,7 @@ class MainActivity : AppCompatActivity() {
 
         if (device == targetDevice) return
         device = targetDevice
-        createPoseEstimator()
+        createPoseDetector()
     }
 
     private var changeModelListener = object : AdapterView.OnItemSelectedListener {
@@ -182,14 +214,6 @@ class MainActivity : AppCompatActivity() {
         override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
             changeDevice(position)
         }
-        override fun onNothingSelected(parent: AdapterView<*>?) {}
-    }
-
-    private var changeTrackerListener = object : AdapterView.OnItemSelectedListener {
-        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-//            changeTracker(position)
-        }
-
         override fun onNothingSelected(parent: AdapterView<*>?) {}
     }
 
@@ -218,7 +242,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun createPoseEstimator() {
+    private fun createPoseDetector() {
         val poseDetector = when (modelPos) {
             0 -> {
                 // MoveNet Lightning (SinglePose)
@@ -234,14 +258,18 @@ class MainActivity : AppCompatActivity() {
             }
             else -> { null }
         }
-        poseDetector?.let { detector -> cameraSource?.setDetector(detector) }
+        poseDetector?.let { detector -> cameraSource?.setPoseDetector(detector) }
+    }
+
+    private fun createHandDetector() {
+        val handEstimator: MediapipeHands = MediapipeHands(this, mHandsViewFL)
+        cameraSource?.setHandDetector(handEstimator)
     }
 
     /**
      * Shows an error message dialog.
      */
     class ErrorDialog : DialogFragment() {
-
         override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
             AlertDialog.Builder(activity)
                 .setMessage(requireArguments().getString(ARG_MESSAGE))
@@ -251,7 +279,6 @@ class MainActivity : AppCompatActivity() {
                 .create()
 
         companion object {
-
             @JvmStatic
             private val ARG_MESSAGE = "message"
 

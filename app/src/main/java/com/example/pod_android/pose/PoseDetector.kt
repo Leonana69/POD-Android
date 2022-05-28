@@ -1,4 +1,4 @@
-package com.example.pod_android
+package com.example.pod_android.pose
 
 import android.graphics.Bitmap
 import com.example.pod_android.data.Person

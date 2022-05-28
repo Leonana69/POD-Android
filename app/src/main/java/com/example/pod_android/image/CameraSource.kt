@@ -1,7 +1,9 @@
 package com.example.pod_android.image
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Context
+import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.graphics.Matrix
@@ -16,11 +18,14 @@ import android.media.Image
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.IBinder
 import android.util.Log
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat
-import com.example.pod_android.PoseDetector
+import com.example.pod_android.FloatingService
+import com.example.pod_android.pose.PoseDetector
 import com.example.pod_android.data.Person
+import com.example.pod_android.hand.MediapipeHands
 import com.google.android.renderscript.Toolkit
 import com.google.android.renderscript.YuvFormat
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -44,8 +49,10 @@ class CameraSource(
 
     /** init variables */
     private val lock = Any()
-    private var detector: PoseDetector? = null
-    private var isTrackerEnabled = false
+    private val cameraFacing = CameraCharacteristics.LENS_FACING_FRONT
+    private var poseDetector: PoseDetector? = null
+    private var handDetector: MediapipeHands? = null
+    private var floatingService: FloatingService? = null
     private lateinit var imageBitmap: Bitmap
 
     /** Frame count that have been processed so far in an one second interval to calculate FPS. */
@@ -89,14 +96,19 @@ class CameraSource(
             }, imageReaderHandler)
         }
 
-    fun setDetector(detector: PoseDetector) {
+    fun setPoseDetector(poseDetector: PoseDetector) {
         synchronized(lock) {
-            if (this.detector != null) {
-                this.detector?.close()
-                this.detector = null
-            }
-            this.detector = detector
+            this.poseDetector?.close()
+            this.poseDetector = poseDetector
         }
+    }
+
+    fun setHandDetector(handDetector: MediapipeHands) {
+        this.handDetector = handDetector
+    }
+
+    fun setFloatingService(fs: FloatingService) {
+        this.floatingService = fs
     }
 
     suspend fun initCamera() {
@@ -104,7 +116,7 @@ class CameraSource(
             val characteristics = cameraManager.getCameraCharacteristics(cameraId)
 
             val cameraDirection = characteristics.get(CameraCharacteristics.LENS_FACING)
-            if (cameraDirection != null && cameraDirection == CameraCharacteristics.LENS_FACING_FRONT) {
+            if (cameraDirection != null && cameraDirection == cameraFacing) {
                 this.cameraId = cameraId
                 break
             }
@@ -113,8 +125,6 @@ class CameraSource(
         camera = openCamera(cameraManager, cameraId)
         imageReader = ImageReader.newInstance(PREVIEW_WIDTH, PREVIEW_HEIGHT, ImageFormat.YUV_420_888, 3)
         imageReader?.setOnImageAvailableListener({ reader ->
-            var startTime = System.currentTimeMillis()
-            var endTime = System.currentTimeMillis()
             val image = reader.acquireLatestImage()
 
             if (image != null) {
@@ -123,21 +133,18 @@ class CameraSource(
 
                 // Create rotated version for portrait display
                 val transMatrix = Matrix()
-                transMatrix.postRotate(-90.0f)
-                transMatrix.postScale(-1f, 1f)
-                val rotatedBitmap = Bitmap.createBitmap(
+                if (cameraFacing == CameraCharacteristics.LENS_FACING_FRONT)
+                    transMatrix.postScale(-1f, 1f)
+                transMatrix.postRotate(90.0f)
+
+                imageBitmap = Bitmap.createBitmap(
                     imageBitmap, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT,
                     transMatrix, false
                 )
-                endTime = System.currentTimeMillis()
-                Log.d(TAG, "initCamera1: " + (endTime - startTime) + "ms")
-                startTime = System.currentTimeMillis()
-                processImage(rotatedBitmap)
+                processImage(imageBitmap)
                 image.close()
             }
 
-            endTime = System.currentTimeMillis()
-            Log.d(TAG, "initCamera2: " + (endTime - startTime) + "ms")
         }, imageReaderHandler)
 
         imageReader?.surface?.let { surface ->
@@ -188,8 +195,10 @@ class CameraSource(
         imageReader?.close()
         imageReader = null
         stopImageReaderThread()
-        detector?.close()
-        detector = null
+        poseDetector?.close()
+        poseDetector = null
+        handDetector?.close()
+        handDetector = null
         fpsTimer?.cancel()
         fpsTimer = null
         frameProcessedInOneSecondInterval = 0
@@ -201,25 +210,39 @@ class CameraSource(
         val persons = mutableListOf<Person>()
 
         synchronized(lock) {
-            detector?.estimatePoses(bitmap)?.let {
+            poseDetector?.estimatePoses(bitmap)?.let {
                 persons.addAll(it)
             }
         }
+
+        handDetector?.estimateHands(bitmap)
 
         // if the model returns only one item, show that item's score.
         if (persons.isNotEmpty()) {
             listener?.onDetectedInfo(persons[0].score)
         }
 
-        frameProcessedInOneSecondInterval++
         visualize(persons, bitmap)
+        frameProcessedInOneSecondInterval++
     }
 
     private fun visualize(persons: List<Person>, bitmap: Bitmap) {
-        val outputBitmap = VisualizationUtils.drawBodyKeypoints(
+        val bodyBitmap = VisualizationUtils.drawBodyKeyPoints(
             bitmap,
-            persons.filter { it.score > MIN_CONFIDENCE }, isTrackerEnabled
-        )
+            persons.filter { it.score > MIN_CONFIDENCE })
+
+        var handBitmap: Bitmap? = null
+        handDetector?.handsResult?.let {
+            handBitmap = VisualizationUtils.drawHandKeyPoints(
+                bodyBitmap,
+                it
+            )
+            if (it.multiHandLandmarks().size > 0) {
+                Log.d("Floating", "visualize: run")
+                val lm = it.multiHandLandmarks()[0].landmarkList[8]
+                floatingService?.setCursor(lm.x, lm.y)
+            }
+        }
 
         val holder = surfaceView.holder
         val surfaceCanvas = holder.lockCanvas()
@@ -230,13 +253,13 @@ class CameraSource(
             val top: Int
 
             if (canvas.height > canvas.width) {
-                val ratio = outputBitmap.height.toFloat() / outputBitmap.width
+                val ratio = bodyBitmap.height.toFloat() / bodyBitmap.width
                 screenWidth = canvas.width
                 left = 0
                 screenHeight = (canvas.width * ratio).toInt()
                 top = (canvas.height - screenHeight) / 2
             } else {
-                val ratio = outputBitmap.width.toFloat() / outputBitmap.height
+                val ratio = bodyBitmap.width.toFloat() / bodyBitmap.height
                 screenHeight = canvas.height
                 top = 0
                 screenWidth = (canvas.height * ratio).toInt()
@@ -244,10 +267,12 @@ class CameraSource(
             }
             val right: Int = left + screenWidth
             val bottom: Int = top + screenHeight
+
             canvas.drawBitmap(
-                outputBitmap, Rect(0, 0, outputBitmap.width, outputBitmap.height),
+                handBitmap ?: bodyBitmap, Rect(0, 0, bodyBitmap.width, bodyBitmap.height),
                 Rect(left, top, right, bottom), null
             )
+
             holder.unlockCanvasAndPost(canvas)
         }
     }

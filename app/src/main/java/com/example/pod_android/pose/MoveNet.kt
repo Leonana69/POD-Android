@@ -1,8 +1,7 @@
-package com.example.pod_android
+package com.example.pod_android.pose
 
 import android.content.Context
 import android.graphics.*
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.example.pod_android.data.*
@@ -10,7 +9,6 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.gpu.GpuDelegate
-import org.tensorflow.lite.nnapi.NnApiDelegate
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
@@ -26,7 +24,8 @@ enum class ModelType {
     Thunder
 }
 
-class MoveNet(private val interpreter: Interpreter, private var gpuDelegate: GpuDelegate?): PoseDetector {
+class MoveNet(private val interpreter: Interpreter, private var gpuDelegate: GpuDelegate?):
+    PoseDetector {
     companion object {
         private const val MIN_CROP_KEYPOINT_SCORE = .2f
         private const val CPU_NUM_THREADS = 4
@@ -63,7 +62,8 @@ class MoveNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
             }
 
             return MoveNet(Interpreter(FileUtil.loadMappedFile(context,
-                if (modelType == ModelType.Lightning) LIGHTNING_FILENAME else THUNDER_FILENAME),
+                if (modelType == ModelType.Lightning) LIGHTNING_FILENAME else THUNDER_FILENAME
+            ),
                 options), gpuDelegate)
         }
     }

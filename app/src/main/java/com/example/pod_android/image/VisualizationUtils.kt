@@ -4,20 +4,35 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.util.Log
 import com.example.pod_android.data.BodyPart
 import com.example.pod_android.data.Person
-import kotlin.math.max
+import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark
+import com.google.mediapipe.solutions.hands.Hands
+import com.google.mediapipe.solutions.hands.HandsResult
 
 object VisualizationUtils {
+    private fun paintCircle(c: Int) = Paint().apply {
+        strokeWidth = CIRCLE_RADIUS
+        color = c
+        style = Paint.Style.FILL
+    }
+    private fun paintLine(c: Int) = Paint().apply {
+        strokeWidth = LINE_WIDTH
+        color = c
+        style = Paint.Style.STROKE
+    }
+    private fun paintText(c: Int) = Paint().apply {
+        textSize = PERSON_ID_TEXT_SIZE
+        color = c
+        textAlign = Paint.Align.LEFT
+    }
     /** Radius of circle used to draw keypoints.  */
     private const val CIRCLE_RADIUS = 6f
-
     /** Width of line used to connected two keypoints.  */
     private const val LINE_WIDTH = 4f
-
     /** The text size of the person id that will be displayed when the tracker is available.  */
     private const val PERSON_ID_TEXT_SIZE = 30f
-
     /** Distance from person id to the nose keypoint.  */
     private const val PERSON_ID_MARGIN = 6f
 
@@ -43,51 +58,51 @@ object VisualizationUtils {
         Pair(BodyPart.RIGHT_KNEE, BodyPart.RIGHT_ANKLE)
     )
 
-    // Draw line and point indicate body pose
-    fun drawBodyKeypoints(
+    private const val LEFT_HAND_COLOR: Int = 0xffffff00.toInt()
+    private const val RIGHT_HAND_COLOR: Int = 0xff00ff00.toInt()
+    private const val BODY_COLOR: Int = 0xffff0000.toInt()
+    private const val DEBUG_COLOR: Int = 0xff00ffff.toInt()
+    private const val LANDMARK_RADIUS = 0.008f
+    private const val NUM_SEGMENTS = 120
+    fun drawHandKeyPoints(
         input: Bitmap,
-        persons: List<Person>,
+        hands: HandsResult,
         isTrackerEnabled: Boolean = false
     ): Bitmap {
-        val paintCircle = Paint().apply {
-            strokeWidth = CIRCLE_RADIUS
-            color = Color.RED
-            style = Paint.Style.FILL
+        val output = input.copy(Bitmap.Config.ARGB_8888, true)
+        val originalSizeCanvas = Canvas(output)
+        val width = output.width
+        val height = output.height
+        val numHands: Int = hands.multiHandLandmarks().size
+        for (i in 0 until numHands) {
+            val isLeftHand = hands.multiHandedness()[i].label == "Left"
+            Log.d("TAG", "drawHandKeyPoints: " + isLeftHand)
+            for (c in Hands.HAND_CONNECTIONS) {
+                val start: NormalizedLandmark = hands.multiHandLandmarks()[i].landmarkList[c.start()]
+                val end: NormalizedLandmark = hands.multiHandLandmarks()[i].landmarkList[c.end()]
+                originalSizeCanvas.drawLine(start.x * width, start.y * height, end.x * width, end.y * height,
+                    paintLine(if (isLeftHand) LEFT_HAND_COLOR else RIGHT_HAND_COLOR))
+            }
+            for (landmark in hands.multiHandLandmarks()[i].landmarkList) {
+                originalSizeCanvas.drawCircle(landmark.x * width, landmark.y * height, CIRCLE_RADIUS,
+                    paintCircle(if (isLeftHand) LEFT_HAND_COLOR else RIGHT_HAND_COLOR))
+            }
         }
-        val paintLine = Paint().apply {
-            strokeWidth = LINE_WIDTH
-            color = Color.RED
-            style = Paint.Style.STROKE
-        }
+        return output
+    }
 
-        val paintText = Paint().apply {
-            textSize = PERSON_ID_TEXT_SIZE
-            color = Color.BLUE
-            textAlign = Paint.Align.LEFT
-        }
-
+    // Draw line and point indicate body pose
+    fun drawBodyKeyPoints(
+        input: Bitmap,
+        persons: List<Person>,
+    ): Bitmap {
         val output = input.copy(Bitmap.Config.ARGB_8888, true)
         val originalSizeCanvas = Canvas(output)
         persons.forEach { person ->
-            // draw person id if tracker is enable
-            if (isTrackerEnabled) {
-                person.boundingBox?.let {
-                    val personIdX = max(0f, it.left)
-                    val personIdY = max(0f, it.top)
-
-                    originalSizeCanvas.drawText(
-                        person.id.toString(),
-                        personIdX,
-                        personIdY - PERSON_ID_MARGIN,
-                        paintText
-                    )
-                    originalSizeCanvas.drawRect(it, paintLine)
-                }
-            }
             bodyJoints.forEach {
                 val pointA = person.keyPoints[it.first.position].coordinate
                 val pointB = person.keyPoints[it.second.position].coordinate
-                originalSizeCanvas.drawLine(pointA.x, pointA.y, pointB.x, pointB.y, paintLine)
+                originalSizeCanvas.drawLine(pointA.x, pointA.y, pointB.x, pointB.y, paintLine(BODY_COLOR))
             }
 
             person.keyPoints.forEach { point ->
@@ -95,7 +110,7 @@ object VisualizationUtils {
                     point.coordinate.x,
                     point.coordinate.y,
                     CIRCLE_RADIUS,
-                    paintCircle
+                    paintCircle(BODY_COLOR)
                 )
             }
         }

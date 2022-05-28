@@ -1,4 +1,4 @@
-package com.example.pod_android
+package com.example.pod_android.pose
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -13,7 +13,6 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.gpu.GpuDelegate
-import org.tensorflow.lite.nnapi.NnApiDelegate
 import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.common.ops.NormalizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
@@ -67,22 +66,17 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
         val estimationStartTimeNanos = SystemClock.elapsedRealtimeNanos()
         val inputArray = arrayOf(processInputImage(bitmap).tensorBuffer.buffer)
         Log.i(
-            TAG,
-            String.format(
+            TAG, String.format(
                 "Scaling to [-1,1] took %.2f ms",
                 (SystemClock.elapsedRealtimeNanos() - estimationStartTimeNanos) / 1_000_000f
-            )
-        )
+            ))
 
         val outputMap = initOutputMap(interpreter)
 
         val inferenceStartTimeNanos = SystemClock.elapsedRealtimeNanos()
         interpreter.runForMultipleInputsOutputs(inputArray, outputMap)
         lastInferenceTimeNanos = SystemClock.elapsedRealtimeNanos() - inferenceStartTimeNanos
-        Log.i(
-            TAG,
-            String.format("Interpreter took %.2f ms", 1.0f * lastInferenceTimeNanos / 1_000_000)
-        )
+        Log.i(TAG, String.format("Interpreter took %.2f ms", 1.0f * lastInferenceTimeNanos / 1_000_000))
 
         val heatmaps = outputMap[0] as Array<Array<Array<FloatArray>>>
         val offsets = outputMap[1] as Array<Array<Array<FloatArray>>>
@@ -94,8 +88,7 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
             String.format(
                 "Postprocessing took %.2f ms",
                 (SystemClock.elapsedRealtimeNanos() - postProcessingStartTimeNanos) / 1_000_000f
-            )
-        )
+            ))
 
         return listOf(person)
     }
