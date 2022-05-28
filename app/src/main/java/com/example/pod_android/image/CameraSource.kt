@@ -238,7 +238,6 @@ class CameraSource(
                 it
             )
             if (it.multiHandLandmarks().size > 0) {
-                Log.d("Floating", "visualize: run")
                 val lm = it.multiHandLandmarks()[0].landmarkList[8]
                 floatingService?.setCursor(lm.x, lm.y)
             }

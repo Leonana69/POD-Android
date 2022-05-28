@@ -102,6 +102,7 @@ class MainActivity : AppCompatActivity() {
             mBounded = true
             val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
             mFloatingService = mFSBinder.getService()
+            cameraSource?.setFloatingService(mFloatingService!!)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -133,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         openCamera()
         // start and bind service
+
         val mIntent = Intent(this, FloatingService::class.java)
         startService(mIntent)
         bindService(mIntent, mConnection, BIND_AUTO_CREATE)
