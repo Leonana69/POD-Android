@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.PointF
 import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import com.example.pod_android.data.BodyPart
 import com.example.pod_android.data.Device
 import com.example.pod_android.data.KeyPoint
@@ -50,6 +51,10 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
                     this.setNumThreads(CPU_NUM_THREADS)
                 }
             }
+
+            Toast.makeText(context, "Use PoseNet on "
+                    + (if (device == Device.CPU) "CPU" else if (device == Device.GPU) "GPU" else "NNAPI"),
+                Toast.LENGTH_SHORT).show()
             return PoseNet(Interpreter(FileUtil.loadMappedFile(context, MODEL_FILENAME), options), gpuDelegate)
         }
     }

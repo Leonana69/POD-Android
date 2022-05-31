@@ -12,24 +12,13 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <SurfaceView
-        android:id="@+id/surfaceView"
-        android:layout_width="match_parent"
-        android:layout_height="540dp" />
-
 <!--    <include layout="@layout/bottom_sheet_layout" />-->
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/surfaceView"
-        android:orientation="horizontal">
 
     <LinearLayout
         android:id="@+id/ll_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="50"
+        android:layout_centerVertical="true"
         android:orientation="vertical">
 
         <LinearLayout
@@ -98,16 +87,6 @@
             android:layout_marginHorizontal="5dp"
             android:text="@string/btn_stop"
             />
-
-    </LinearLayout>
-
-    <FrameLayout
-        android:id="@+id/fl_handsView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="50"
-        >
-    </FrameLayout>
 
     </LinearLayout>
 

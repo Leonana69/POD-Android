@@ -3,10 +3,9 @@ package com.example.pod_android
 import android.Manifest
 import android.app.AlertDialog
 import android.app.Dialog
-import android.content.ComponentName
-import android.content.Intent
-import android.content.ServiceConnection
+import android.content.*
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
@@ -32,31 +31,17 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val TAG = "MainActivity"
-    /** A [SurfaceView] for camera preview.   */
-    private lateinit var surfaceView: SurfaceView
-
-    /** Default pose estimation model is 1 (MoveNet Thunder)
-     * 0 == MoveNet Lightning model
-     * 1 == MoveNet Thunder model
-     * 2 == PoseNet model
-     **/
-    private var modelPos = 0
-    /** Default device is 1
-     * 0 == CPU
-     * 1 == GPU
-     * 2 == NNAPI
-     **/
-    private var devicePos = 1
-    private var device = Device.GPU
+    private val defaultModelPosition = 2
+    private val defaultAccelPosition = 1
 
     private lateinit var tvScore: TextView
     private lateinit var tvFPS: TextView
-    private lateinit var mHandsViewFL: FrameLayout
     private lateinit var spnDevice: Spinner
     private lateinit var spnModel: Spinner
     private lateinit var mBtnStart: Button
     private lateinit var mBtnStop: Button
-    private var cameraSource: CameraSource? = null
+
+    private lateinit var mServiceIntent: Intent
 
     /** request permission */
     private fun requestPermission() {
@@ -101,11 +86,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             mBounded = true
             val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
             mFloatingService = mFSBinder.getService()
-            cameraSource?.setFloatingService(mFloatingService!!)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            mBounded = false
             mFloatingService = null
         }
     }
@@ -119,10 +102,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // find elements
         tvScore = findViewById(R.id.tvScore)
         tvFPS = findViewById(R.id.tvFps)
-        mHandsViewFL = findViewById(R.id.fl_handsView)
         spnModel = findViewById(R.id.spnModel)
         spnDevice = findViewById(R.id.spnDevice)
-        surfaceView = findViewById(R.id.surfaceView)
         mBtnStart = findViewById(R.id.btn_start)
         mBtnStop = findViewById(R.id.btn_stop)
 
@@ -130,85 +111,29 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         mBtnStop.setOnClickListener(this)
 
         initSpinner()
-        spnModel.setSelection(modelPos)
-        spnDevice.setSelection(devicePos)
+        spnModel.setSelection(defaultModelPosition)
+        spnDevice.setSelection(defaultAccelPosition)
         requestPermission()
     }
 
     override fun onStart() {
         super.onStart()
-        openCamera()
-//
-        // start and bind service
-        val mIntent = Intent(this, FloatingService::class.java)
-        startService(mIntent)
-        bindService(mIntent, mConnection, BIND_AUTO_CREATE)
-    }
-
-    override fun onResume() {
-        cameraSource?.resume()
-        super.onResume()
-    }
-
-    override fun onPause() {
-        cameraSource?.close()
-        cameraSource = null
-        super.onPause()
-    }
-
-    // open camera
-    private fun openCamera() {
-        if (cameraSource == null) {
-            cameraSource =
-                CameraSource(this, surfaceView, object : CameraSource.CameraSourceListener {
-                    override fun onFPSListener(fps: Int) {
-                        tvFPS.text = getString(R.string.tfe_pe_tv_fps, fps)
-                    }
-
-                    override fun onDetectedInfo(personScore: Float?) {
-                        tvScore.text = getString(R.string.tfe_pe_tv_score, personScore ?: 0f)
-                    }
-
-                })
-            lifecycleScope.launch(Dispatchers.Main) {
-                cameraSource?.initCamera()
-            }
-        }
-        createPoseDetector()
-        createHandDetector()
-    }
-
-    // Change model when app is running
-    private fun changeModel(position: Int) {
-        if (modelPos == position) return
-        modelPos = position
-        createPoseDetector()
-    }
-
-    // Change device (accelerator) type when app is running
-    private fun changeDevice(position: Int) {
-        if (devicePos == position) return
-        devicePos = position
-
-        device = when (position) {
-            0 -> Device.CPU
-            1 -> Device.GPU
-            2 -> Device.NNAPI
-            else -> return
-        }
-        createPoseDetector()
+        val filter = IntentFilter()
+        filter.addAction(FloatingService.ACTION_UPDATE_FPS)
+        filter.addAction(FloatingService.ACTION_UPDATE_SCORE)
+        registerReceiver(mBroadcastReceiver, filter)
     }
 
     private var changeModelListener = object : AdapterView.OnItemSelectedListener {
         override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-            changeModel(position)
+            mFloatingService?.setPoseModel(position)
         }
         override fun onNothingSelected(parent: AdapterView<*>?) {}
     }
 
     private var changeDeviceListener = object : AdapterView.OnItemSelectedListener {
         override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-            changeDevice(position)
+            mFloatingService?.setAcceleration(position)
         }
         override fun onNothingSelected(parent: AdapterView<*>?) {}
     }
@@ -234,28 +159,37 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
-    private fun createPoseDetector() {
-        val poseDetector = when (modelPos) {
-            0 -> { MoveNet.create(this, device, ModelType.Lightning) }
-            1 -> { MoveNet.create(this, device, ModelType.Thunder) }
-            2 -> { PoseNet.create(this, device) }
-            else -> { null }
-        }
-        poseDetector?.let { detector -> cameraSource?.setPoseDetector(detector) }
-    }
-
-    private fun createHandDetector() {
-        val handEstimator: MediapipeHands = MediapipeHands(this, mHandsViewFL)
-        cameraSource?.setHandDetector(handEstimator)
-    }
-
     override fun onClick(p0: View?) {
         when (p0?.id) {
             R.id.btn_start -> {
-
+                if (!mBounded) {
+                    mServiceIntent = Intent(this, FloatingService::class.java)
+                    startService(mServiceIntent)
+                    bindService(mServiceIntent, mConnection, BIND_AUTO_CREATE)
+                }
             }
             R.id.btn_stop -> {
+                if (mBounded) {
+                    unbindService(mConnection)
+                    stopService(mServiceIntent)
+                    mBounded = false
+                }
+            }
+        }
+    }
 
+    private val mBroadcastReceiver = object: BroadcastReceiver() {
+        override fun onReceive(p0: Context?, p1: Intent?) {
+            when (p1?.action) {
+                FloatingService.ACTION_UPDATE_FPS -> {
+                    val fps: Int = p1.getIntExtra("fps", 0)
+                    tvFPS.text = getString(R.string.tfe_pe_tv_fps, fps)
+                }
+
+                FloatingService.ACTION_UPDATE_SCORE -> {
+                    val score: Float = p1.getFloatExtra("score", 0.0f)
+                    tvScore.text = getString(R.string.tfe_pe_tv_score, score)
+                }
             }
         }
     }

@@ -76,7 +76,6 @@ object VisualizationUtils {
         val numHands: Int = hands.multiHandLandmarks().size
         for (i in 0 until numHands) {
             val isLeftHand = hands.multiHandedness()[i].label == "Left"
-            Log.d("TAG", "drawHandKeyPoints: " + isLeftHand)
             for (c in Hands.HAND_CONNECTIONS) {
                 val start: NormalizedLandmark = hands.multiHandLandmarks()[i].landmarkList[c.start()]
                 val end: NormalizedLandmark = hands.multiHandLandmarks()[i].landmarkList[c.end()]

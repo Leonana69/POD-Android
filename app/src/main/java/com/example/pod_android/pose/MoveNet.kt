@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import com.example.pod_android.data.*
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
@@ -61,10 +62,15 @@ class MoveNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
                 }
             }
 
-            return MoveNet(Interpreter(FileUtil.loadMappedFile(context,
-                if (modelType == ModelType.Lightning) LIGHTNING_FILENAME else THUNDER_FILENAME
-            ),
-                options), gpuDelegate)
+            Toast.makeText(context, "Use MoveNet "
+                    + (if (modelType == ModelType.Lightning) "Lightning" else "Thunder") + " on "
+                    + (if (device == Device.CPU) "CPU" else if (device == Device.GPU) "GPU" else "NNAPI"),
+                Toast.LENGTH_SHORT).show()
+            return MoveNet(Interpreter(FileUtil.loadMappedFile(
+                context,
+                if (modelType == ModelType.Lightning) LIGHTNING_FILENAME else THUNDER_FILENAME),
+                options),
+                gpuDelegate)
         }
     }
 
