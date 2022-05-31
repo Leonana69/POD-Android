@@ -30,7 +30,7 @@ import com.example.pod_android.pose.PoseNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val TAG = "MainActivity"
     /** A [SurfaceView] for camera preview.   */
     private lateinit var surfaceView: SurfaceView
@@ -66,7 +66,6 @@ class MainActivity : AppCompatActivity() {
                 ActivityResultContracts.RequestPermission()
             ) { isGranted: Boolean ->
                 if (isGranted) {
-//                    openCamera()
                 } else {
                     Toast.makeText(this, "Request camera permission failed", Toast.LENGTH_SHORT).show()
                 }
@@ -80,7 +79,6 @@ class MainActivity : AppCompatActivity() {
                 // the ACTION_MANAGE_OVERLAY_PERMISSION won't return anything
                 // do not need to check the resultCode
                 if (Settings.canDrawOverlays(this)) {
-
                 } else
                     Toast.makeText(this, "Request overlay permission failed", Toast.LENGTH_SHORT).show()
             }
@@ -128,6 +126,9 @@ class MainActivity : AppCompatActivity() {
         mBtnStart = findViewById(R.id.btn_start)
         mBtnStop = findViewById(R.id.btn_stop)
 
+        mBtnStart.setOnClickListener(this)
+        mBtnStop.setOnClickListener(this)
+
         initSpinner()
         spnModel.setSelection(modelPos)
         spnDevice.setSelection(devicePos)
@@ -137,7 +138,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         openCamera()
-
+//
         // start and bind service
         val mIntent = Intent(this, FloatingService::class.java)
         startService(mIntent)
@@ -246,5 +247,16 @@ class MainActivity : AppCompatActivity() {
     private fun createHandDetector() {
         val handEstimator: MediapipeHands = MediapipeHands(this, mHandsViewFL)
         cameraSource?.setHandDetector(handEstimator)
+    }
+
+    override fun onClick(p0: View?) {
+        when (p0?.id) {
+            R.id.btn_start -> {
+
+            }
+            R.id.btn_stop -> {
+
+            }
+        }
     }
 }
