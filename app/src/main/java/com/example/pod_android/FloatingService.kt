@@ -243,10 +243,7 @@ class FloatingService : Service() {
         val bodyBitmap = VisualizationUtils.drawBodyKeyPoints(image, persons.filter { it.score > 0.2f })
         var handBitmap: Bitmap? = null
         mHandModel.handsResult?.let {
-            handBitmap = VisualizationUtils.drawHandKeyPoints(
-                bodyBitmap,
-                it
-            )
+            handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
                 val lm = it.multiHandLandmarks()[0].landmarkList[8]
                 this.setCursor(lm.x, lm.y)

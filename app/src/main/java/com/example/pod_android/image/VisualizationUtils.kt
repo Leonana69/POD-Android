@@ -64,11 +64,7 @@ object VisualizationUtils {
     private const val DEBUG_COLOR: Int = 0xff00ffff.toInt()
     private const val LANDMARK_RADIUS = 0.008f
     private const val NUM_SEGMENTS = 120
-    fun drawHandKeyPoints(
-        input: Bitmap,
-        hands: HandsResult,
-        isTrackerEnabled: Boolean = false
-    ): Bitmap {
+    fun drawHandKeyPoints(input: Bitmap, hands: HandsResult): Bitmap {
         val output = input.copy(Bitmap.Config.ARGB_8888, true)
         val originalSizeCanvas = Canvas(output)
         val width = output.width
@@ -91,10 +87,7 @@ object VisualizationUtils {
     }
 
     // Draw line and point indicate body pose
-    fun drawBodyKeyPoints(
-        input: Bitmap,
-        persons: List<Person>,
-    ): Bitmap {
+    fun drawBodyKeyPoints(input: Bitmap, persons: List<Person>): Bitmap {
         val output = input.copy(Bitmap.Config.ARGB_8888, true)
         val originalSizeCanvas = Canvas(output)
         persons.forEach { person ->
