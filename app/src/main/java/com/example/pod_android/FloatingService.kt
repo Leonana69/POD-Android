@@ -9,7 +9,6 @@ import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import android.view.*
 import android.view.View.OnTouchListener
 import android.widget.Toast
@@ -21,7 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlin.math.abs
+import java.io.DataOutputStream
 
 class FloatingService : Service() {
     companion object {
@@ -229,6 +228,7 @@ class FloatingService : Service() {
         }
     }
 
+    private var pressCount = 0
     fun mProcessImage(image: Bitmap) {
         val persons = mPoseModel.estimatePoses(image)
         mHandModel.estimateHands(image)
@@ -245,8 +245,24 @@ class FloatingService : Service() {
         mHandModel.handsResult?.let {
             handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
-                val lm = it.multiHandLandmarks()[0].landmarkList[8]
-                this.setCursor(lm.x, lm.y)
+                val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
+                val lm = it.multiHandLandmarks()[0].landmarkList[12] // middle tip
+                this.setCursor(li.x, li.y)
+
+                val dis = (lm.x - li.x) * (lm.x - li.x) + (lm.y - li.y) * (lm.y - li.y)
+                if (dis < 0.001f && pressCount > 15) {
+                    val tx = (li.x * screenWidth).toInt()
+                    val ty = (li.y * screenHeight).toInt()
+                    // we need superuser to generate global touch events
+                    val process = Runtime.getRuntime().exec("su")
+                    val dataOutputStream = DataOutputStream(process.outputStream)
+                    dataOutputStream.writeBytes("input tap $tx $ty\n")
+                    dataOutputStream.flush()
+                    dataOutputStream.close()
+                    process.outputStream.close()
+                    pressCount = 0
+                }
+                pressCount++
             }
         }
         handBitmap?.let { psv.setPreviewSurfaceView(it) }
