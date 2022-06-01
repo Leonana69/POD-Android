@@ -21,14 +21,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 class FloatingService : Service() {
     companion object {
         const val ACTION_UPDATE_FPS: String = "actionUpdateFps"
         const val ACTION_UPDATE_SCORE: String = "actionUpdateScore"
-    }
 
-    private val TAG = "FloatingService"
+    }
+    private val TAG: String = "FloatingService"
     private lateinit var pointParams: WindowManager.LayoutParams
     private lateinit var windowParams: WindowManager.LayoutParams
     private lateinit var windowManager: WindowManager
@@ -42,6 +43,7 @@ class FloatingService : Service() {
 
     private lateinit var overlay: View
     private lateinit var previewSV: SurfaceView
+    private val psv = PreviewSurfaceView()
     private lateinit var cameraSource: CameraSource
     private val job = SupervisorJob()
     private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
@@ -137,9 +139,13 @@ class FloatingService : Service() {
     }
 
     private fun setCursor(x: Float, y: Float) {
-        pointParams.x = (x * screenWidth).toInt()
-        pointParams.y = (y * screenHeight).toInt()
-        Log.d(TAG, "setCursor: " + pointParams.x + " " + pointParams.y)
+        var scaledX = (x - 0.5f) / 9.0f * 10.0f + 0.5f
+        var scaledY = (y - 0.5f) / 9.0f * 10.0f + 0.5f
+        scaledX = if (scaledX < 0.0f) 0.0f else if (scaledX > 1.0f) 1.0f else scaledX
+        scaledY = if (scaledY < 0.0f) 0.0f else if (scaledY > 1.0f) 1.0f else scaledY
+
+        pointParams.x = (scaledX * screenWidth).toInt()
+        pointParams.y = (scaledY * screenHeight).toInt()
 
         floatingServiceHandler.post(Runnable {
             windowManager.updateViewLayout(overlay, pointParams)
@@ -154,36 +160,45 @@ class FloatingService : Service() {
         mPoseModel.setAccel(a)
     }
 
-    private fun setPreviewSurfaceView(image: Bitmap) {
-        val holder = previewSV.holder
-        val surfaceCanvas = holder.lockCanvas()
-        surfaceCanvas?.let { canvas ->
-            val screenWidth: Int
-            val screenHeight: Int
-            val left: Int
-            val top: Int
+    inner class PreviewSurfaceView {
+        private var left: Int = 0
+        private var top: Int = 0
+        private var right: Int = 0
+        private var bottom: Int = 0
+        private var defaultImageWidth: Int = 0
+        private var defaultImageHeight: Int = 0
+        fun setPreviewSurfaceView(image: Bitmap) {
+            val holder = previewSV.holder
+            val surfaceCanvas = holder.lockCanvas()
+            surfaceCanvas?.let { canvas ->
+                if (defaultImageWidth != image.width || defaultImageHeight != image.height) {
+                    defaultImageWidth = image.width
+                    defaultImageHeight = image.height
+                    val screenWidth: Int
+                    val screenHeight: Int
 
-            if (canvas.height > canvas.width) {
-                val ratio = image.height.toFloat() / image.width
-                screenWidth = canvas.width
-                left = 0
-                screenHeight = (canvas.width * ratio).toInt()
-                top = (canvas.height - screenHeight) / 2
-            } else {
-                val ratio = image.width.toFloat() / image.height
-                screenHeight = canvas.height
-                top = 0
-                screenWidth = (canvas.height * ratio).toInt()
-                left = (canvas.width - screenWidth) / 2
+                    if (canvas.height > canvas.width) {
+                        val ratio = image.height.toFloat() / image.width
+                        screenWidth = canvas.width
+                        left = 0
+                        screenHeight = (canvas.width * ratio).toInt()
+                        top = (canvas.height - screenHeight) / 2
+                    } else {
+                        val ratio = image.width.toFloat() / image.height
+                        screenHeight = canvas.height
+                        top = 0
+                        screenWidth = (canvas.height * ratio).toInt()
+                        left = (canvas.width - screenWidth) / 2
+                    }
+                    right = left + screenWidth
+                    bottom = top + screenHeight
+                }
+
+                canvas.drawBitmap(
+                    image, Rect(0, 0, image.width, image.height),
+                    Rect(left, top, right, bottom), null)
+                holder.unlockCanvasAndPost(canvas)
             }
-            val right: Int = left + screenWidth
-            val bottom: Int = top + screenHeight
-
-            canvas.drawBitmap(
-                image, Rect(0, 0, image.width, image.height),
-                Rect(left, top, right, bottom), null
-            )
-            holder.unlockCanvasAndPost(canvas)
         }
     }
 
@@ -237,6 +252,6 @@ class FloatingService : Service() {
                 this.setCursor(lm.x, lm.y)
             }
         }
-        handBitmap?.let { setPreviewSurfaceView(it) }
+        handBitmap?.let { psv.setPreviewSurfaceView(it) }
     }
 }
