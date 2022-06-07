@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         super.onStart()
         val filter = IntentFilter()
         filter.addAction(FloatingService.ACTION_UPDATE_FPS)
-        filter.addAction(FloatingService.ACTION_UPDATE_SCORE)
+        filter.addAction(FloatingService.ACTION_UPDATE_DIS)
         registerReceiver(mBroadcastReceiver, filter)
     }
 
@@ -186,9 +186,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     tvFPS.text = getString(R.string.tfe_pe_tv_fps, fps)
                 }
 
-                FloatingService.ACTION_UPDATE_SCORE -> {
-                    val score: Float = p1.getFloatExtra("score", 0.0f)
-                    tvScore.text = getString(R.string.tfe_pe_tv_score, score)
+                FloatingService.ACTION_UPDATE_DIS -> {
+                    val dis: Float = p1.getFloatExtra("dis", 0.0f)
+                    tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
                 }
             }
         }

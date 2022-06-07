@@ -5,13 +5,19 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import android.view.*
 import android.view.View.OnTouchListener
 import android.widget.Toast
+import com.example.pod_android.data.BodyPart
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
@@ -22,13 +28,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.DataOutputStream
 
-class FloatingService : Service() {
+class FloatingService : Service(), SensorEventListener {
     companion object {
         const val ACTION_UPDATE_FPS: String = "actionUpdateFps"
-        const val ACTION_UPDATE_SCORE: String = "actionUpdateScore"
+        const val ACTION_UPDATE_DIS: String = "actionUpdateDis"
 
     }
     private val TAG: String = "FloatingService"
+
     private lateinit var pointParams: WindowManager.LayoutParams
     private lateinit var windowParams: WindowManager.LayoutParams
     private lateinit var windowManager: WindowManager
@@ -37,6 +44,7 @@ class FloatingService : Service() {
     private var screenHeight = 0
     private lateinit var floatingServiceHandler: Handler
 
+    private var orient = 0
     private lateinit var mPoseModel: PoseModel
     private lateinit var mHandModel: MediapipeHands
 
@@ -101,6 +109,10 @@ class FloatingService : Service() {
 
         mPoseModel = PoseModel(applicationContext)
         mHandModel = MediapipeHands(applicationContext)
+
+        // detect phone rotation
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY), SensorManager.SENSOR_DELAY_NORMAL)
 
         cameraSource = CameraSource(this, object: CameraSource.CameraSourceListener {
             override fun processImage(image: Bitmap) {
@@ -204,6 +216,7 @@ class FloatingService : Service() {
     inner class FloatingOnTouchListener : OnTouchListener {
         private var x = 0
         private var y = 0
+
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(view: View, event: MotionEvent): Boolean {
             when (event.action) {
@@ -228,16 +241,36 @@ class FloatingService : Service() {
         }
     }
 
+    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {}
+
+    override fun onSensorChanged(p0: SensorEvent?) {
+        if (p0?.sensor?.type == Sensor.TYPE_GRAVITY) {
+            orient = if (p0.values[0] > 7.0) 1
+            else if (p0.values[0] < -7.0) -1
+            else 0
+        }
+    }
+
     private var pressCount = 0
     fun mProcessImage(image: Bitmap) {
-        val persons = mPoseModel.estimatePoses(image)
         mHandModel.estimateHands(image)
+
+        val persons = mPoseModel.estimatePoses(image, orient)
 
         // get score for pose detection
         if (persons.isNotEmpty()) {
-            val i = Intent(ACTION_UPDATE_SCORE)
-            i.putExtra("score", persons[0].score)
-            sendBroadcast(i)
+            if (persons[0].score > 0.3f) {
+                // this distance estimation should be calibrated
+                val leftEyeY = persons[0].keyPoints[1].coordinate.y
+                val rightEyeY = persons[0].keyPoints[2].coordinate.y
+                val leftShoulderY = persons[0].keyPoints[5].coordinate.y
+                val rightShoulderY = persons[0].keyPoints[6].coordinate.y
+                var dis = (leftShoulderY + rightShoulderY) / 2.0f - (leftEyeY + rightEyeY) / 2.0f
+                dis = 110 - dis / 3.0f
+                val i = Intent(ACTION_UPDATE_DIS)
+                i.putExtra("dis", dis)
+                sendBroadcast(i)
+            }
         }
 
         val bodyBitmap = VisualizationUtils.drawBodyKeyPoints(image, persons.filter { it.score > 0.2f })
@@ -254,13 +287,13 @@ class FloatingService : Service() {
                     val tx = (li.x * screenWidth).toInt()
                     val ty = (li.y * screenHeight).toInt()
                     // we need superuser to generate global touch events
-                    val process = Runtime.getRuntime().exec("su")
-                    val dataOutputStream = DataOutputStream(process.outputStream)
-                    dataOutputStream.writeBytes("input tap $tx $ty\n")
-                    dataOutputStream.flush()
-                    dataOutputStream.close()
-                    process.outputStream.close()
-                    pressCount = 0
+//                    val process = Runtime.getRuntime().exec("su")
+//                    val dataOutputStream = DataOutputStream(process.outputStream)
+//                    dataOutputStream.writeBytes("input tap $tx $ty\n")
+//                    dataOutputStream.flush()
+//                    dataOutputStream.close()
+//                    process.outputStream.close()
+//                    pressCount = 0
                 }
                 pressCount++
             }

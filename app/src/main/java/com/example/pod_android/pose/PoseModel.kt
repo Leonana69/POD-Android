@@ -46,10 +46,10 @@ class PoseModel(private val context: Context) {
         }
     }
 
-    fun estimatePoses(bitmap: Bitmap): List<Person> {
+    fun estimatePoses(bitmap: Bitmap, orient: Int): List<Person> {
         val persons = mutableListOf<Person>()
         synchronized(lock) {
-            poseDetector?.estimatePoses(bitmap)?.let {
+            poseDetector?.estimatePoses(bitmap, orient)?.let {
                 persons.addAll(it)
             }
         }

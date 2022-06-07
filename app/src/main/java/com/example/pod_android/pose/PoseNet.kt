@@ -20,6 +20,7 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp
+import org.tensorflow.lite.support.image.ops.Rot90Op
 import kotlin.math.exp
 
 class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: GpuDelegate?) :
@@ -67,9 +68,9 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
     private var cropSize = 0
 
     @Suppress("UNCHECKED_CAST")
-    override fun estimatePoses(bitmap: Bitmap): List<Person> {
+    override fun estimatePoses(bitmap: Bitmap, orient: Int): List<Person> {
         val estimationStartTimeNanos = SystemClock.elapsedRealtimeNanos()
-        val inputArray = arrayOf(processInputImage(bitmap).tensorBuffer.buffer)
+        val inputArray = arrayOf(processInputImage(bitmap, orient).tensorBuffer.buffer)
         Log.i(
             TAG, String.format(
                 "Scaling to [-1,1] took %.2f ms",
@@ -175,7 +176,7 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
     /**
      * Scale and crop the input image to a TensorImage.
      */
-    private fun processInputImage(bitmap: Bitmap): TensorImage {
+    private fun processInputImage(bitmap: Bitmap, orient: Int): TensorImage {
         // reset crop width and height
         cropWidth = 0f
         cropHeight = 0f
@@ -189,6 +190,7 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
 
         val imageProcessor = ImageProcessor.Builder().apply {
             add(ResizeWithCropOrPadOp(cropSize, cropSize))
+            add(Rot90Op(orient))
             add(ResizeOp(inputWidth, inputHeight, ResizeOp.ResizeMethod.BILINEAR))
             add(NormalizeOp(MEAN, STD))
         }.build()

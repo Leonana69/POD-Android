@@ -2,7 +2,7 @@
     <string name="app_name">POD Android</string>
     <string name="tfe_pe_app_name">TFL Pose Estimation</string>
     <string name="tfe_pe_request_permission">This app needs camera permission.</string>
-    <string name="tfe_pe_tv_score">Score: %.2f</string>
+    <string name="tfe_pe_tv_dis">Dis: %.0fcm</string>
     <string name="tfe_pe_tv_model">Model: </string>
     <string name="tfe_pe_tv_fps">Fps: %d</string>
     <string name="tfe_pe_tv_device">Device: </string>
