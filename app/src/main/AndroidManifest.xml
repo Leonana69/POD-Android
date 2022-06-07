@@ -25,6 +25,11 @@
             android:enabled="true"
             android:exported="false" />
 
+        <service
+            android:name=".droneOnUsb.PodUsbSerialService"
+            android:enabled="true"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

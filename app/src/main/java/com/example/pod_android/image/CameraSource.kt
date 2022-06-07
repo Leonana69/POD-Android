@@ -85,7 +85,6 @@ class CameraSource(
         }
 
     suspend fun initCamera() {
-        Log.d("TAG", "initCamera: ")
         imageReaderThread = HandlerThread("imageReaderThread").apply { start() }
         imageReaderHandler = Handler(imageReaderThread!!.looper)
         fpsTimer = Timer()

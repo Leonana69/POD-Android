@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.example.pod_android.data.Device
+import com.example.pod_android.droneOnUsb.PodUsbSerialService
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.pose.ModelType
@@ -28,6 +29,8 @@ import com.example.pod_android.pose.MoveNet
 import com.example.pod_android.pose.PoseNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.w3c.dom.Text
+import kotlin.math.log
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
     private val TAG = "MainActivity"
@@ -36,12 +39,15 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private lateinit var tvScore: TextView
     private lateinit var tvFPS: TextView
+    private lateinit var tvUsbDev: TextView
     private lateinit var spnDevice: Spinner
     private lateinit var spnModel: Spinner
     private lateinit var mBtnStart: Button
     private lateinit var mBtnStop: Button
+    private lateinit var mBtnCnt: Button
 
-    private lateinit var mServiceIntent: Intent
+    private lateinit var mIntentFS: Intent
+    private lateinit var mIntentPUSS: Intent
 
     /** request permission */
     private fun requestPermission() {
@@ -80,12 +86,23 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     var mFloatingService: FloatingService? = null
+    var mPodUsbSerialService: PodUsbSerialService? = null
     var mBounded = false
+
     private var mConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            mBounded = true
-            val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
-            mFloatingService = mFSBinder.getService()
+            when (name.shortClassName) {
+                ".FloatingService" -> {
+                    val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
+                    mFloatingService = mFSBinder.getService()
+                    mBounded = true
+                }
+
+                ".droneOnUsb.PodUsbSerialService" -> {
+                    val mPUSSBinder: PodUsbSerialService.UsbBinder = service as PodUsbSerialService.UsbBinder
+                    mPodUsbSerialService = mPUSSBinder.getService()
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -102,13 +119,16 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // find elements
         tvScore = findViewById(R.id.tvScore)
         tvFPS = findViewById(R.id.tvFps)
+        tvUsbDev = findViewById(R.id.tvUsbDev)
         spnModel = findViewById(R.id.spnModel)
         spnDevice = findViewById(R.id.spnDevice)
         mBtnStart = findViewById(R.id.btn_start)
         mBtnStop = findViewById(R.id.btn_stop)
+        mBtnCnt = findViewById(R.id.btn_cnt)
 
         mBtnStart.setOnClickListener(this)
         mBtnStop.setOnClickListener(this)
+        mBtnCnt.setOnClickListener(this)
 
         initSpinner()
         spnModel.setSelection(defaultModelPosition)
@@ -118,10 +138,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onStart() {
         super.onStart()
+
+        mIntentPUSS = Intent(this, PodUsbSerialService::class.java)
+        startService(mIntentPUSS)
+        bindService(mIntentPUSS, mConnection, BIND_AUTO_CREATE)
+
         val filter = IntentFilter()
         filter.addAction(FloatingService.ACTION_UPDATE_FPS)
         filter.addAction(FloatingService.ACTION_UPDATE_DIS)
+        filter.addAction(PodUsbSerialService.ACTION_USB_CONNECTED)
         registerReceiver(mBroadcastReceiver, filter)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopService(mIntentPUSS)
     }
 
     private var changeModelListener = object : AdapterView.OnItemSelectedListener {
@@ -163,17 +194,20 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         when (p0?.id) {
             R.id.btn_start -> {
                 if (!mBounded) {
-                    mServiceIntent = Intent(this, FloatingService::class.java)
-                    startService(mServiceIntent)
-                    bindService(mServiceIntent, mConnection, BIND_AUTO_CREATE)
+                    mIntentFS = Intent(this, FloatingService::class.java)
+                    startService(mIntentFS)
+                    bindService(mIntentFS, mConnection, BIND_AUTO_CREATE)
                 }
             }
             R.id.btn_stop -> {
                 if (mBounded) {
                     unbindService(mConnection)
-                    stopService(mServiceIntent)
+                    stopService(mIntentFS)
                     mBounded = false
                 }
+            }
+            R.id.btn_cnt -> {
+                mPodUsbSerialService?.usbStartConnection()
             }
         }
     }
@@ -189,6 +223,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 FloatingService.ACTION_UPDATE_DIS -> {
                     val dis: Float = p1.getFloatExtra("dis", 0.0f)
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
+                }
+
+                PodUsbSerialService.ACTION_USB_CONNECTED -> {
+                    val dev: String? = p1.getStringExtra("dev")
+                    tvUsbDev.text = getString(R.string.usb_dev, dev)
                 }
             }
         }

@@ -54,4 +54,6 @@ dependencies {
     // MediaPipe Hands Solution.
     implementation 'com.google.mediapipe:solution-core:latest.release'
     implementation 'com.google.mediapipe:hands:latest.release'
+
+    implementation 'com.github.felHR85:UsbSerial:6.1.0'
 }
