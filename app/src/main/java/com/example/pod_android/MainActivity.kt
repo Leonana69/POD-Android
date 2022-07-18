@@ -21,6 +21,9 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.example.pod_android.data.Device
+import com.example.pod_android.droneOnUsb.CommanderHoverPacket
+import com.example.pod_android.droneOnUsb.CommanderPacket
+import com.example.pod_android.droneOnUsb.CrtpPacket
 import com.example.pod_android.droneOnUsb.PodUsbSerialService
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
@@ -223,6 +226,24 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 FloatingService.ACTION_UPDATE_DIS -> {
                     val dis: Float = p1.getFloatExtra("dis", 0.0f)
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
+                    if (dis == -1F) {
+                        // keep the height
+                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 4000u)
+//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.6F)
+                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                    } else if (dis < 60) {
+                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
+//                        val cp: CommanderHoverPacket = CommanderHoverPacket(-0.1F, 0F, 0F, 0.6F)
+                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                    } else if (dis > 70) {
+                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 6000u)
+//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.6F)
+                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                    } else {
+                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 4000u)
+//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.6F)
+                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                    }
                 }
 
                 PodUsbSerialService.ACTION_USB_CONNECTED -> {

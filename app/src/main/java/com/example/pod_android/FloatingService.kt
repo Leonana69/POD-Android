@@ -271,6 +271,11 @@ class FloatingService : Service(), SensorEventListener {
                 val i = Intent(ACTION_UPDATE_DIS)
                 i.putExtra("dis", dis)
                 sendBroadcast(i)
+            } else {
+                // no person
+                val i = Intent(ACTION_UPDATE_DIS)
+                i.putExtra("dis", -1F)
+                sendBroadcast(i)
             }
         }
 

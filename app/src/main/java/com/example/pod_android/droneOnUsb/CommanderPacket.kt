@@ -2,7 +2,7 @@ package com.example.pod_android.droneOnUsb
 
 import java.nio.ByteBuffer
 
-class CommanderPacket(roll: Float, pitch: Float, yaw: Float, thrust: UShort): CrtpPacket(0, CrtpPort.COMMANDER) {
+class CommanderPacket(roll: Float, pitch: Float, yaw: Float, thrust: UShort): CrtpPacket(1, CrtpPort.COMMANDER) {
     private var mRoll: Float = roll
     private var mPitch: Float = pitch
     private var mYaw: Float = yaw
@@ -24,7 +24,7 @@ class CommanderPacket(roll: Float, pitch: Float, yaw: Float, thrust: UShort): Cr
     }
 }
 
-class CommanderHoverPacket(vx: Float, vy: Float, vyaw: Float, dis: Float): CrtpPacket(0, CrtpPort.COMMANDER_GENERIC) {
+class CommanderHoverPacket(vx: Float, vy: Float, vyaw: Float, dis: Float): CrtpPacket(1, CrtpPort.COMMANDER_GENERIC) {
     private var mVx: Float = vx
     private var mVy: Float = vy
     private var mVyaw: Float = vyaw
