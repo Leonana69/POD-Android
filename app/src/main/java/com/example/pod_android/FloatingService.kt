@@ -23,11 +23,14 @@ import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
 import com.example.pod_android.pose.PoseModel
+import com.google.common.flogger.backend.LogData
+import com.google.mediapipe.formats.proto.LandmarkProto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.DataOutputStream
+import kotlin.math.sqrt
 
 class FloatingService : Service(), SensorEventListener {
     companion object {
@@ -150,15 +153,20 @@ class FloatingService : Service(), SensorEventListener {
         job.cancel()
     }
 
-    private fun setCursor(x: Float, y: Float) {
+    private fun finger2ScreenLoc(x: Float, y: Float): Point {
         var scaledX = (x - 0.5f) / 9.0f * 10.0f + 0.5f
         var scaledY = (y - 0.5f) / 9.0f * 10.0f + 0.5f
         scaledX = if (scaledX < 0.0f) 0.0f else if (scaledX > 1.0f) 1.0f else scaledX
         scaledY = if (scaledY < 0.0f) 0.0f else if (scaledY > 1.0f) 1.0f else scaledY
 
-        pointParams.x = (scaledX * screenWidth).toInt()
-        pointParams.y = (scaledY * screenHeight).toInt()
+        return Point((scaledX * screenWidth).toInt(), (scaledY * screenHeight).toInt())
+    }
 
+    private fun setCursor(x: Float, y: Float) {
+        val screenLoc = finger2ScreenLoc(x, y)
+
+        pointParams.x = screenLoc.x
+        pointParams.y = screenLoc.y
         floatingServiceHandler.post(Runnable {
             windowManager.updateViewLayout(overlay, pointParams)
         })
@@ -186,24 +194,24 @@ class FloatingService : Service(), SensorEventListener {
                 if (defaultImageWidth != image.width || defaultImageHeight != image.height) {
                     defaultImageWidth = image.width
                     defaultImageHeight = image.height
-                    val screenWidth: Int
-                    val screenHeight: Int
+                    val width: Int
+                    val height: Int
 
                     if (canvas.height > canvas.width) {
                         val ratio = image.height.toFloat() / image.width
-                        screenWidth = canvas.width
+                        width = canvas.width
                         left = 0
-                        screenHeight = (canvas.width * ratio).toInt()
-                        top = (canvas.height - screenHeight) / 2
+                        height = (canvas.width * ratio).toInt()
+                        top = (canvas.height - height) / 2
                     } else {
                         val ratio = image.width.toFloat() / image.height
-                        screenHeight = canvas.height
+                        height = canvas.height
                         top = 0
-                        screenWidth = (canvas.height * ratio).toInt()
-                        left = (canvas.width - screenWidth) / 2
+                        width = (canvas.height * ratio).toInt()
+                        left = (canvas.width - width) / 2
                     }
-                    right = left + screenWidth
-                    bottom = top + screenHeight
+                    right = left + width
+                    bottom = top + height
                 }
 
                 canvas.drawBitmap(
@@ -252,7 +260,79 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
+    private fun mEventGenetator(loc: Point) {
+        // we need superuser to generate global touch events
+        val process = Runtime.getRuntime().exec("su")
+        val dataOutputStream = DataOutputStream(process.outputStream)
+        dataOutputStream.writeBytes("input tap $loc.x $loc.y\n")
+        dataOutputStream.flush()
+        dataOutputStream.close()
+        process.outputStream.close()
+    }
+
+    private enum class StateMachine {
+        WAIT, DEFAULT, FIRST_BEND, FIRST_RELEASE, SECOND_BEND, SECOND_RELEASE,
+    }
+    private var pressState = StateMachine.WAIT
     private var pressCount = 0
+    private fun mTouchService(hand: Array<LandmarkProto.NormalizedLandmark>) {
+        val bendThreshold = 0.8F
+        val releaseThreshold = 0.25F
+        val vec1dx = hand[1].x - hand[0].x
+        val vec1dy = hand[1].y - hand[0].y
+
+        val vec2dx = hand[2].x - hand[1].x
+        val vec2dy = hand[2].y - hand[1].y
+
+        val angle = kotlin.math.acos((vec1dx * vec2dx + vec1dy * vec2dy) / sqrt(vec1dx * vec1dx + vec1dy * vec1dy) / sqrt(vec2dx * vec2dx + vec2dy * vec2dy))
+//        Log.d(TAG, "mTouchService: $angle")
+        when (pressState) {
+            StateMachine.WAIT -> {
+                if (angle < releaseThreshold) {
+                    pressState = StateMachine.DEFAULT
+                }
+            }
+            StateMachine.DEFAULT -> {
+                if (angle > bendThreshold) {
+                    pressState = StateMachine.FIRST_BEND
+                    pressCount = 0
+                }
+            }
+            StateMachine.FIRST_BEND -> {
+                if (angle < releaseThreshold) {
+                    pressState = StateMachine.FIRST_RELEASE
+                    pressCount = 0
+                } else if (pressCount++ > 30) {
+                    pressState = StateMachine.WAIT
+                }
+            }
+            StateMachine.FIRST_RELEASE -> {
+                if (angle > bendThreshold) {
+                    pressState = StateMachine.SECOND_BEND
+                    pressCount = 0
+                } else if (pressCount++ > 30) {
+                    pressState = StateMachine.WAIT
+                    // press
+                    mEventGenetator(finger2ScreenLoc(hand[3].x, hand[3].y))
+                    Log.d(TAG, "mProcessImage: press")
+                }
+            }
+            StateMachine.SECOND_BEND -> {
+                if (angle < releaseThreshold) {
+                    pressState = StateMachine.SECOND_RELEASE
+                    pressCount = 0
+                } else if (pressCount++ > 50) {
+                    pressState = StateMachine.WAIT
+                }
+            }
+            StateMachine.SECOND_RELEASE -> {
+                // exit here
+                Log.d(TAG, "mProcessImage: exit")
+                pressState = StateMachine.WAIT
+            }
+        }
+    }
+
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
 
@@ -285,23 +365,15 @@ class FloatingService : Service(), SensorEventListener {
             handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
                 val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
-                val lm = it.multiHandLandmarks()[0].landmarkList[12] // middle tip
                 this.setCursor(li.x, li.y)
 
-                val dis = (lm.x - li.x) * (lm.x - li.x) + (lm.y - li.y) * (lm.y - li.y)
-                if (dis < 0.001f && pressCount > 15) {
-                    val tx = (li.x * screenWidth).toInt()
-                    val ty = (li.y * screenHeight).toInt()
-                    // we need superuser to generate global touch events
-//                    val process = Runtime.getRuntime().exec("su")
-//                    val dataOutputStream = DataOutputStream(process.outputStream)
-//                    dataOutputStream.writeBytes("input tap $tx $ty\n")
-//                    dataOutputStream.flush()
-//                    dataOutputStream.close()
-//                    process.outputStream.close()
-//                    pressCount = 0
-                }
-                pressCount++
+                // thumb single/double taps for press/exit
+                val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],
+                    it.multiHandLandmarks()[0].landmarkList[3],
+                    it.multiHandLandmarks()[0].landmarkList[4],
+                    it.multiHandLandmarks()[0].landmarkList[8])
+
+                mTouchService(thumbLoc)
             }
         }
         handBitmap?.let { psv.setPreviewSurfaceView(it) }

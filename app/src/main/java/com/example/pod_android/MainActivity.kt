@@ -228,20 +228,20 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
                     if (dis == -1F) {
                         // keep the height
-                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 4000u)
-//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.6F)
+//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
+                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis < 60) {
-                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
-//                        val cp: CommanderHoverPacket = CommanderHoverPacket(-0.1F, 0F, 0F, 0.6F)
+                    } else if (dis < 75) {
+//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 1000u)
+                        val cp: CommanderHoverPacket = CommanderHoverPacket(-0.1F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis > 70) {
-                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 6000u)
-//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.6F)
+                    } else if (dis > 85) {
+//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 3000u)
+                        val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
                     } else {
-                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 4000u)
-//                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.6F)
+//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
+                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
                     }
                 }
