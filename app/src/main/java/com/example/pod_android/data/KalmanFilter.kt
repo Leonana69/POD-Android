@@ -1,5 +1,5 @@
-package com.example.pod_android.hand
-
+package com.example.pod_android.data
+// https://github.com/christianb/Kalman-Filter
 class KalmanFilter(private val R: Float,
                    private val Q: Float,
                    private val A: Float = 1.0f,

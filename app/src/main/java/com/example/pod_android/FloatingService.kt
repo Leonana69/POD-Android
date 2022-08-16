@@ -17,14 +17,11 @@ import android.util.Log
 import android.view.*
 import android.view.View.OnTouchListener
 import android.widget.Toast
-import com.example.pod_android.data.BodyPart
-import com.example.pod_android.droneOnUsb.PodUsbSerialService
-import com.example.pod_android.hand.KalmanFilter
+import com.example.pod_android.data.KalmanFilter
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
 import com.example.pod_android.pose.PoseModel
-import com.google.common.flogger.backend.LogData
 import com.google.mediapipe.formats.proto.LandmarkProto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -260,10 +257,23 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
-    private fun mEventGenerator(loc: Point) {
+    private fun mEventGenerator(event: Int, loc: Point = Point(0, 0)) {
         // we need superuser to generate global touch events
         val process = Runtime.getRuntime().exec("su")
         val dataOutputStream = DataOutputStream(process.outputStream)
+        when (event) {
+            0 -> {
+                dataOutputStream.writeBytes("input tap ${loc.x} ${loc.y + 80}\n")
+            }
+            1 -> {
+                dataOutputStream.writeBytes("input keyevent KEYCODE_BACK\n")
+            }
+            2-> {
+                val b = finger2ScreenLoc(mSlideBeginX, mSlideBeginY)
+                dataOutputStream.writeBytes("input touchscreen swipe ${b.x} ${b.y} ${loc.x} ${loc.y} 100\n")
+                Log.d(TAG, "mEventGenerator: swipe ${b.x} ${b.y} ${loc.x} ${loc.y}")
+            }
+        }
         dataOutputStream.writeBytes("input tap ${loc.x} ${loc.y + 80}\n")
         dataOutputStream.flush()
         dataOutputStream.close()
@@ -272,12 +282,16 @@ class FloatingService : Service(), SensorEventListener {
 
     private enum class StateMachine {
         WAIT, DEFAULT, FIRST_BEND, FIRST_RELEASE, SECOND_BEND, SECOND_RELEASE,
+        SWIPE_BEGIN,
     }
     private var pressState = StateMachine.WAIT
     private var pressCount = 0
+    private var mSlideBeginX = 0.0f
+    private var mSlideBeginY = 0.0f
     private fun mTouchService(hand: Array<LandmarkProto.NormalizedLandmark>) {
-        val bendThreshold = 0.8F
+        val bendThreshold = 0.7F
         val releaseThreshold = 0.25F
+        val swipeThreshold = 3e-3F
         val vec1dx = hand[1].x - hand[0].x
         val vec1dy = hand[1].y - hand[0].y
 
@@ -285,16 +299,25 @@ class FloatingService : Service(), SensorEventListener {
         val vec2dy = hand[2].y - hand[1].y
 
         val angle = kotlin.math.acos((vec1dx * vec2dx + vec1dy * vec2dy) / sqrt(vec1dx * vec1dx + vec1dy * vec1dy) / sqrt(vec2dx * vec2dx + vec2dy * vec2dy))
+        val dis = (hand[3].x - hand[2].x) * (hand[3].x - hand[2].x) + (hand[3].y - hand[2].y) * (hand[3].y - hand[2].y)
 //        Log.d(TAG, "mTouchService: $angle")
         when (pressState) {
             StateMachine.WAIT -> {
-                if (angle < releaseThreshold) {
+                if (angle < releaseThreshold && dis > swipeThreshold) {
                     pressState = StateMachine.DEFAULT
                 }
             }
             StateMachine.DEFAULT -> {
+
                 if (angle > bendThreshold) {
                     pressState = StateMachine.FIRST_BEND
+                    pressCount = 0
+                }
+
+                if (dis < swipeThreshold) {
+                    pressState = StateMachine.SWIPE_BEGIN
+                    mSlideBeginX = hand[3].x
+                    mSlideBeginY = hand[3].y
                     pressCount = 0
                 }
             }
@@ -311,10 +334,9 @@ class FloatingService : Service(), SensorEventListener {
                     pressState = StateMachine.SECOND_BEND
                     pressCount = 0
                 } else if (pressCount++ > 10) {
-                    pressState = StateMachine.WAIT
-                    // press
-                    mEventGenerator(finger2ScreenLoc(hand[3].x, hand[3].y))
+                    mEventGenerator(0, finger2ScreenLoc(hand[3].x, hand[3].y)) // press
                     Log.d(TAG, "mProcessImage: press")
+                    pressState = StateMachine.WAIT
                 }
             }
             StateMachine.SECOND_BEND -> {
@@ -326,9 +348,21 @@ class FloatingService : Service(), SensorEventListener {
                 }
             }
             StateMachine.SECOND_RELEASE -> {
-                // exit here
-                Log.d(TAG, "mProcessImage: exit")
+                mEventGenerator(1) // back
+                Log.d(TAG, "mProcessImage: back")
                 pressState = StateMachine.WAIT
+            }
+            StateMachine.SWIPE_BEGIN -> {
+                if (dis < swipeThreshold) {
+                    val move = (hand[3].x - mSlideBeginX) * (hand[3].x - mSlideBeginX) + (hand[3].y - mSlideBeginY) * (hand[3].y - mSlideBeginY)
+                    if (move > 5e-3 && (pressCount++ > 30 || move > 1e-2)) {
+                        Log.d(TAG, "mProcessImage: swipe")
+                        mEventGenerator(2, finger2ScreenLoc(hand[3].x, hand[3].y))
+                        pressState = StateMachine.WAIT
+                    }
+                } else {
+                    pressState = StateMachine.WAIT
+                }
             }
         }
     }
