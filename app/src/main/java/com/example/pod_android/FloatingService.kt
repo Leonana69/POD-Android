@@ -62,13 +62,11 @@ class FloatingService : Service(), SensorEventListener {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val paint = Paint()
-            paint.color = Color.CYAN
+            paint.color = Color.RED
             paint.strokeJoin = Paint.Join.ROUND
             paint.strokeCap = Paint.Cap.ROUND
             paint.strokeWidth = 3f
-            val xLoc = 15.toFloat()
-            val yLoc = 15.toFloat()
-            canvas.drawCircle(xLoc, yLoc, 15f, paint)
+            canvas.drawCircle(15f, 15f, 15f, paint)
         }
     }
 
@@ -274,7 +272,7 @@ class FloatingService : Service(), SensorEventListener {
                 Log.d(TAG, "mEventGenerator: swipe ${b.x} ${b.y} ${loc.x} ${loc.y}")
             }
         }
-        dataOutputStream.writeBytes("input tap ${loc.x} ${loc.y + 80}\n")
+
         dataOutputStream.flush()
         dataOutputStream.close()
         process.outputStream.close()
@@ -300,7 +298,7 @@ class FloatingService : Service(), SensorEventListener {
 
         val angle = kotlin.math.acos((vec1dx * vec2dx + vec1dy * vec2dy) / sqrt(vec1dx * vec1dx + vec1dy * vec1dy) / sqrt(vec2dx * vec2dx + vec2dy * vec2dy))
         val dis = (hand[3].x - hand[2].x) * (hand[3].x - hand[2].x) + (hand[3].y - hand[2].y) * (hand[3].y - hand[2].y)
-//        Log.d(TAG, "mTouchService: $angle")
+
         when (pressState) {
             StateMachine.WAIT -> {
                 if (angle < releaseThreshold && dis > swipeThreshold) {
@@ -308,7 +306,6 @@ class FloatingService : Service(), SensorEventListener {
                 }
             }
             StateMachine.DEFAULT -> {
-
                 if (angle > bendThreshold) {
                     pressState = StateMachine.FIRST_BEND
                     pressCount = 0

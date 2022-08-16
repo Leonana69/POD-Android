@@ -60,7 +60,7 @@ object VisualizationUtils {
 
     private const val LEFT_HAND_COLOR: Int = 0xffffff00.toInt()
     private const val RIGHT_HAND_COLOR: Int = 0xff00ff00.toInt()
-    private const val BODY_COLOR: Int = 0xffff0000.toInt()
+    private const val BODY_COLOR: Int = 0xfff27b4f.toInt()
     private const val DEBUG_COLOR: Int = 0xff00ffff.toInt()
     private const val LANDMARK_RADIUS = 0.008f
     private const val NUM_SEGMENTS = 120

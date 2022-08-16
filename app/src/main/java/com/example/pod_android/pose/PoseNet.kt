@@ -88,7 +88,7 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
         val offsets = outputMap[1] as Array<Array<Array<FloatArray>>>
 
         val postProcessingStartTimeNanos = SystemClock.elapsedRealtimeNanos()
-        val person = postProcessModelOuputs(heatmaps, offsets)
+        val person = postProcessModelOuputs(heatmaps, offsets, orient)
         Log.i(
             TAG,
             String.format(
@@ -104,7 +104,8 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
      */
     private fun postProcessModelOuputs(
         heatmaps: Array<Array<Array<FloatArray>>>,
-        offsets: Array<Array<Array<FloatArray>>>
+        offsets: Array<Array<Array<FloatArray>>>,
+        orient: Int
     ): Person {
         val height = heatmaps[0].size
         val width = heatmaps[0][0].size
@@ -139,14 +140,20 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
             val inputImageCoordinateY =
                 position.first / (height - 1).toFloat() * inputHeight + offsets[0][positionY][positionX][idx]
             val ratioHeight = cropSize.toFloat() / inputHeight
-            val paddingHeight = cropHeight / 2
-            yCoords[idx] = (inputImageCoordinateY * ratioHeight - paddingHeight).toInt()
+            val paddingHeight = (cropHeight / 2).toInt()
 
             val inputImageCoordinateX =
                 position.second / (width - 1).toFloat() * inputWidth + offsets[0][positionY][positionX][idx + numKeypoints]
             val ratioWidth = cropSize.toFloat() / inputWidth
-            val paddingWidth = cropWidth / 2
-            xCoords[idx] = (inputImageCoordinateX * ratioWidth - paddingWidth).toInt()
+            val paddingWidth = (cropWidth / 2).toInt()
+
+            if (orient != 0) {
+                yCoords[idx] = cropSize / 2 * (1 - orient) + orient * (inputImageCoordinateX * ratioHeight).toInt() - paddingHeight
+                xCoords[idx] = cropSize / 2 * (1 + orient) - orient * (inputImageCoordinateY * ratioWidth).toInt() - paddingWidth
+            } else {
+                yCoords[idx] = (inputImageCoordinateY * ratioHeight).toInt() - paddingHeight
+                xCoords[idx] = (inputImageCoordinateX * ratioWidth).toInt() - paddingWidth
+            }
 
             confidenceScores[idx] = sigmoid(heatmaps[0][positionY][positionX][idx])
         }
@@ -194,6 +201,7 @@ class PoseNet(private val interpreter: Interpreter, private var gpuDelegate: Gpu
             add(ResizeOp(inputWidth, inputHeight, ResizeOp.ResizeMethod.BILINEAR))
             add(NormalizeOp(MEAN, STD))
         }.build()
+
         val tensorImage = TensorImage(DataType.FLOAT32)
         tensorImage.load(bitmap)
         return imageProcessor.process(tensorImage)
