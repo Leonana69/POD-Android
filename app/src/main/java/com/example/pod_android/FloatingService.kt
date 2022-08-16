@@ -154,8 +154,8 @@ class FloatingService : Service(), SensorEventListener {
     }
 
     private fun finger2ScreenLoc(x: Float, y: Float): Point {
-        var scaledX = (x - 0.5f) / 9.0f * 10.0f + 0.5f
-        var scaledY = (y - 0.5f) / 9.0f * 10.0f + 0.5f
+        var scaledX = (x - 0.5f - orient * 0.15f) / 2.0f * 3.0f + 0.5f
+        var scaledY = (y - 0.35f + orient * 0.15f) / 2.0f * 3.0f + 0.5f
         scaledX = if (scaledX < 0.0f) 0.0f else if (scaledX > 1.0f) 1.0f else scaledX
         scaledY = if (scaledY < 0.0f) 0.0f else if (scaledY > 1.0f) 1.0f else scaledY
 
@@ -264,7 +264,7 @@ class FloatingService : Service(), SensorEventListener {
         // we need superuser to generate global touch events
         val process = Runtime.getRuntime().exec("su")
         val dataOutputStream = DataOutputStream(process.outputStream)
-        dataOutputStream.writeBytes("input tap $loc.x $loc.y\n")
+        dataOutputStream.writeBytes("input tap ${loc.x} ${loc.y + 80}\n")
         dataOutputStream.flush()
         dataOutputStream.close()
         process.outputStream.close()
@@ -302,7 +302,7 @@ class FloatingService : Service(), SensorEventListener {
                 if (angle < releaseThreshold) {
                     pressState = StateMachine.FIRST_RELEASE
                     pressCount = 0
-                } else if (pressCount++ > 30) {
+                } else if (pressCount++ > 20) {
                     pressState = StateMachine.WAIT
                 }
             }
@@ -310,7 +310,7 @@ class FloatingService : Service(), SensorEventListener {
                 if (angle > bendThreshold) {
                     pressState = StateMachine.SECOND_BEND
                     pressCount = 0
-                } else if (pressCount++ > 30) {
+                } else if (pressCount++ > 10) {
                     pressState = StateMachine.WAIT
                     // press
                     mEventGenetator(finger2ScreenLoc(hand[3].x, hand[3].y))
@@ -321,7 +321,7 @@ class FloatingService : Service(), SensorEventListener {
                 if (angle < releaseThreshold) {
                     pressState = StateMachine.SECOND_RELEASE
                     pressCount = 0
-                } else if (pressCount++ > 50) {
+                } else if (pressCount++ > 20) {
                     pressState = StateMachine.WAIT
                 }
             }
