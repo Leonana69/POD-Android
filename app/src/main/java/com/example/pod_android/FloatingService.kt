@@ -19,6 +19,7 @@ import android.view.View.OnTouchListener
 import android.widget.Toast
 import com.example.pod_android.data.BodyPart
 import com.example.pod_android.droneOnUsb.PodUsbSerialService
+import com.example.pod_android.hand.KalmanFilter
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
@@ -251,7 +252,6 @@ class FloatingService : Service(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {}
-
     override fun onSensorChanged(p0: SensorEvent?) {
         if (p0?.sensor?.type == Sensor.TYPE_GRAVITY) {
             orient = if (p0.values[0] > 7.0) 1
@@ -260,7 +260,7 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
-    private fun mEventGenetator(loc: Point) {
+    private fun mEventGenerator(loc: Point) {
         // we need superuser to generate global touch events
         val process = Runtime.getRuntime().exec("su")
         val dataOutputStream = DataOutputStream(process.outputStream)
@@ -313,7 +313,7 @@ class FloatingService : Service(), SensorEventListener {
                 } else if (pressCount++ > 10) {
                     pressState = StateMachine.WAIT
                     // press
-                    mEventGenetator(finger2ScreenLoc(hand[3].x, hand[3].y))
+                    mEventGenerator(finger2ScreenLoc(hand[3].x, hand[3].y))
                     Log.d(TAG, "mProcessImage: press")
                 }
             }
@@ -332,6 +332,9 @@ class FloatingService : Service(), SensorEventListener {
             }
         }
     }
+
+    private val mKFx = KalmanFilter(1.0f, 10.0f)
+    private val mKFy = KalmanFilter(1.0f, 10.0f)
 
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
@@ -365,7 +368,9 @@ class FloatingService : Service(), SensorEventListener {
             handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
                 val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
-                this.setCursor(li.x, li.y)
+                val x = mKFx.filter(li.x)
+                val y = mKFy.filter(li.y)
+                this.setCursor(x, y)
 
                 // thumb single/double taps for press/exit
                 val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],
