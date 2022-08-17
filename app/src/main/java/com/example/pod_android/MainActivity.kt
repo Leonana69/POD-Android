@@ -96,21 +96,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             when (name.shortClassName) {
                 ".FloatingService" -> {
+                    Log.d(TAG, "onServiceConnected: float service")
                     val mFSBinder: FloatingService.FloatingServiceBinder = service as FloatingService.FloatingServiceBinder
                     mFloatingService = mFSBinder.getService()
                     mBounded = true
                 }
 
                 ".droneOnUsb.PodUsbSerialService" -> {
+                    Log.d(TAG, "onServiceConnected: pod usb")
                     val mPUSSBinder: PodUsbSerialService.UsbBinder = service as PodUsbSerialService.UsbBinder
                     mPodUsbSerialService = mPUSSBinder.getService()
                 }
             }
         }
 
-        override fun onServiceDisconnected(name: ComponentName) {
-            mFloatingService = null
-        }
+        override fun onServiceDisconnected(name: ComponentName) {}
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,26 +136,34 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         initSpinner()
         spnModel.setSelection(defaultModelPosition)
         spnDevice.setSelection(defaultAccelPosition)
-        requestPermission()
-    }
-
-    override fun onStart() {
-        super.onStart()
-
-        mIntentPUSS = Intent(this, PodUsbSerialService::class.java)
-        startService(mIntentPUSS)
-        bindService(mIntentPUSS, mConnection, BIND_AUTO_CREATE)
 
         val filter = IntentFilter()
         filter.addAction(FloatingService.ACTION_UPDATE_FPS)
         filter.addAction(FloatingService.ACTION_UPDATE_DIS)
         filter.addAction(PodUsbSerialService.ACTION_USB_CONNECTED)
         registerReceiver(mBroadcastReceiver, filter)
+
+        mIntentPUSS = Intent(this, PodUsbSerialService::class.java)
+        startService(mIntentPUSS)
+        bindService(mIntentPUSS, mConnection, BIND_AUTO_CREATE)
+
+        requestPermission()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        mFloatingService?.setCanvasSize(1)
     }
 
     override fun onStop() {
         super.onStop()
-        mFloatingService?.setCanvasSize()
+        mFloatingService?.setCanvasSize(0)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(mBroadcastReceiver)
+        unbindService(mConnection)
         stopService(mIntentPUSS)
     }
 
@@ -207,6 +215,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 if (mBounded) {
                     unbindService(mConnection)
                     stopService(mIntentFS)
+                    mFloatingService = null
                     mBounded = false
                 }
             }

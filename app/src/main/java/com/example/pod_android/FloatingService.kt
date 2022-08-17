@@ -98,7 +98,7 @@ class FloatingService : Service(), SensorEventListener {
         windowParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         windowParams.width = 720
         windowParams.height = 960
-        windowParams.x = 300
+        windowParams.x = 0
         windowParams.y = 300
 
         overlay = DrawView(this)
@@ -268,9 +268,17 @@ class FloatingService : Service(), SensorEventListener {
     }
 
     /*! adjust floating window size */
-    fun setCanvasSize() {
-        windowParams.width = 360
-        windowParams.height = 480
+    fun setCanvasSize(size: Int) {
+        when (size) {
+            0 -> {
+                windowParams.width = 360
+                windowParams.height = 480
+            }
+            1-> {
+                windowParams.width = 720
+                windowParams.height = 960
+            }
+        }
         windowManager.updateViewLayout(previewSV, windowParams)
     }
 
@@ -361,7 +369,7 @@ class FloatingService : Service(), SensorEventListener {
                 if (angle > bendThreshold) {
                     pressState = StateMachine.SECOND_BEND
                     pressCount = 0
-                } else if (pressCount++ > 10) {
+                } else if (pressCount++ > 15) {
                     mEventGenerator(0, screenLoc) // press
                     Log.d(TAG, "mProcessImage: press")
                     pressState = StateMachine.WAIT

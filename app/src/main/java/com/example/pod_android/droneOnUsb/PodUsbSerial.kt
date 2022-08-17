@@ -50,6 +50,12 @@ class PodUsbSerialService: Service() {
         return UsbBinder()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(mUsbBroadcastReceiver)
+        Log.d(TAG, "onDestroy: pod usb")
+    }
+
     fun usbStartConnection() {
         val usbDevices: HashMap<String, UsbDevice>? = mUsbManager.deviceList
         if (!isConnected && !usbDevices?.isEmpty()!!) {
@@ -68,7 +74,6 @@ class PodUsbSerialService: Service() {
 
     fun usbSendData(data: String) {
         if (!isConnected) {
-            Toast.makeText(applicationContext, "No device is connected", Toast.LENGTH_SHORT).show()
             Log.i(TAG, "no device is connected")
         } else {
             mSerial?.write(data.toByteArray())
@@ -78,7 +83,6 @@ class PodUsbSerialService: Service() {
 
     fun usbSendData(data: ByteArray) {
         if (!isConnected) {
-            Toast.makeText(applicationContext, "No device is connected", Toast.LENGTH_SHORT).show()
             Log.i(TAG, "no device is connected")
         } else {
             mSerial?.write(data)
