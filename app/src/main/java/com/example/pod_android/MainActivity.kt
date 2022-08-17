@@ -253,32 +253,35 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 }
 
                 FloatingService.ACTION_UPDATE_DIS -> {
-                    val dis: Float = p1.getFloatExtra("dis", 0.0f)
+                    val dis: Float = p1.getFloatExtra("dis", 0.0F)
+                    val hor: Float = p1.getFloatExtra("hor", 0.0F)
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
 
-                    var cp: CommanderHoverPacket? = null
+                    var vx: Float = 0F
+                    var vy: Float = 0F
+                    var vyaw: Float = 0F
+
                     when {
-                        dis == -1F -> {
-                            // keep the height
-                            // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
-                            cp = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
-                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                        }
-                        dis < 60 -> {
-                            // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 1000u)
-                            cp = CommanderHoverPacket(-0.1F, 0F, 0F, 0.5F)
-                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                        dis > 0 && dis < 60 -> {
+                            vx = -0.15F
                         }
                         dis > 80 -> {
-                             // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 3000u)
-                            cp = CommanderHoverPacket(0.1F, 0F, 0F, 0.5F)
-                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                            vx = 0.15F
                         }
                     }
 
-                    cp?.let {
-                        mPodUsbSerialService?.usbSendData((it as CrtpPacket).toByteArray())
+                    when {
+                        hor > 0.65 -> {
+                            vyaw = -10F
+                        }
+                        hor < 0.35 -> {
+                            vyaw = 10F
+                        }
                     }
+//                    Log.d(TAG, "onReceive: $vx $vy $vyaw")
+                    val cp = CommanderHoverPacket(vx, vy, vyaw, 0.5F)
+                    mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+
                 }
 
                 PodUsbSerialService.ACTION_USB_CONNECTED -> {

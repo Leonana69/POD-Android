@@ -20,7 +20,7 @@ import android.view.View.OnTouchListener
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import com.example.pod_android.data.KalmanFilter
-import com.example.pod_android.hand.MediapipeHands
+import com.example.pod_android.hand.MediaPipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
 import com.example.pod_android.pose.PoseModel
@@ -54,7 +54,7 @@ class FloatingService : Service(), SensorEventListener {
 
     private var orient = 0
     private lateinit var mPoseModel: PoseModel
-    private lateinit var mHandModel: MediapipeHands
+    private lateinit var mHandModel: MediaPipeHands
 
     private lateinit var overlay: View
     private lateinit var previewSV: SurfaceView
@@ -116,7 +116,7 @@ class FloatingService : Service(), SensorEventListener {
         windowManager.addView(previewSV, windowParams)
 
         mPoseModel = PoseModel(applicationContext)
-        mHandModel = MediapipeHands(applicationContext)
+        mHandModel = MediaPipeHands(applicationContext)
 
         // detect phone rotation
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -435,7 +435,8 @@ class FloatingService : Service(), SensorEventListener {
     }
 
     /*! kalman filter for distance filtering */
-    private val mKFDis = KalmanFilter(1.0f, 3.0f)
+    private val mKFDis = KalmanFilter(1.0F, 3.0F)
+    private val mKFHor = KalmanFilter(1.0F, 3.0F)
     /*! process the captured image */
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
@@ -450,24 +451,62 @@ class FloatingService : Service(), SensorEventListener {
                 var leftShoulderY: Float = 0F
                 var rightShoulderY: Float = 0F
 
+                var leftEyeX: Float = 0F
+                var rightEyeX: Float = 0F
+                var noseX: Float = 0F
+                var ratio: Float = 0F
+
                 if (orient != 0) {
                     leftEyeY = persons[0].keyPoints[1].coordinate.x
                     rightEyeY = persons[0].keyPoints[2].coordinate.x
                     leftShoulderY = persons[0].keyPoints[5].coordinate.x
                     rightShoulderY = persons[0].keyPoints[6].coordinate.x
+
+
                 } else {
                     leftEyeY = persons[0].keyPoints[1].coordinate.y
                     rightEyeY = persons[0].keyPoints[2].coordinate.y
                     leftShoulderY = persons[0].keyPoints[5].coordinate.y
                     rightShoulderY = persons[0].keyPoints[6].coordinate.y
+
+
                 }
 
-                var dis = (leftShoulderY + rightShoulderY) / 2.0F - (leftEyeY + rightEyeY) / 2.0F
+                when (orient) {
+                    0 -> {
+                        leftEyeX = persons[0].keyPoints[1].coordinate.x
+                        rightEyeX = persons[0].keyPoints[2].coordinate.x
+                        noseX = persons[0].keyPoints[0].coordinate.x
+                        ratio = image.width.toFloat()
+                    }
+                    1 -> {
+                        leftEyeX = persons[0].keyPoints[1].coordinate.y
+                        rightEyeX = persons[0].keyPoints[2].coordinate.y
+                        noseX = persons[0].keyPoints[0].coordinate.y
+                        ratio = image.height.toFloat()
+                    }
+                    -1 -> {
+                        leftEyeX = image.height - persons[0].keyPoints[1].coordinate.y
+                        rightEyeX = image.height - persons[0].keyPoints[2].coordinate.y
+                        noseX = image.height - persons[0].keyPoints[0].coordinate.y
+                        ratio = image.height.toFloat()
+                    }
+                }
 
-                dis = 21348 * dis.pow(-1.223F)
-                dis = mKFDis.filter(dis)
+                var dis = kotlin.math.abs((leftShoulderY + rightShoulderY) - (leftEyeY + rightEyeY)) / 2.0F
+
+                if (dis != 0F) {
+                    dis = 21348 * dis.pow(-1.223F)
+                    dis = mKFDis.filter(dis)
+                } else {
+                    dis = -1F
+                }
+
+                val hor = (leftEyeX + rightEyeX + noseX) / 3.0F / ratio
+
                 val i = Intent(ACTION_UPDATE_DIS)
                 i.putExtra("dis", dis)
+                i.putExtra("hor", hor)
                 sendBroadcast(i)
             } else {
                 // no person detected
@@ -483,15 +522,20 @@ class FloatingService : Service(), SensorEventListener {
             handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
                 val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
-                this.setCursor(li.x, li.y)
 
-                // thumb single/double taps for press/exit
-                val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],
-                    it.multiHandLandmarks()[0].landmarkList[3],
-                    it.multiHandLandmarks()[0].landmarkList[4],
-                    it.multiHandLandmarks()[0].landmarkList[8])
+                // do not respond if hand is faraway
+                val handSize = (it.multiHandLandmarks()[0].landmarkList[0].x - it.multiHandLandmarks()[0].landmarkList[5].x).pow(2) +
+                    (it.multiHandLandmarks()[0].landmarkList[0].y - it.multiHandLandmarks()[0].landmarkList[5].y).pow(2)
+                if (handSize > 0.005) {
+                    this.setCursor(li.x, li.y)
+                    // thumb single/double taps for press/exit
+                    val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],
+                        it.multiHandLandmarks()[0].landmarkList[3],
+                        it.multiHandLandmarks()[0].landmarkList[4],
+                        it.multiHandLandmarks()[0].landmarkList[8])
 
-                mTouchService(thumbLoc)
+                    mTouchService(thumbLoc)
+                }
             }
         }
         handBitmap?.let { psv.setPreviewSurfaceView(it) }

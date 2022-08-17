@@ -12,7 +12,7 @@ import com.google.mediapipe.solutions.hands.Hands
 import com.google.mediapipe.solutions.hands.HandsOptions
 import com.google.mediapipe.solutions.hands.HandsResult
 
-class MediapipeHands(private val context: Context) {
+class MediaPipeHands(private val context: Context) {
     companion object {
         private const val TAG = "Mediapipe Hands"
     }
