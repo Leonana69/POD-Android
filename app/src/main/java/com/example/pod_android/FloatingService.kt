@@ -96,8 +96,8 @@ class FloatingService : Service(), SensorEventListener {
         windowParams.format = PixelFormat.RGBA_8888
         windowParams.gravity = Gravity.START or Gravity.TOP
         windowParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        windowParams.width = 360
-        windowParams.height = 480
+        windowParams.width = 720
+        windowParams.height = 960
         windowParams.x = 300
         windowParams.y = 300
 
@@ -149,6 +149,16 @@ class FloatingService : Service(), SensorEventListener {
         job.cancel()
     }
 
+    fun setPoseModel(m: Int) {
+        mPoseModel.setModel(m)
+    }
+
+    fun setAcceleration(a: Int) {
+        mPoseModel.setAccel(a)
+    }
+
+    /** floating window */
+    /*! translate index finger location (0, 1) to screen location */
     private fun finger2ScreenLoc(x: Float, y: Float): Point {
         var scaledX = (x - 0.5f - orient * 0.15f) / 2.0f * 3.0f + 0.5f
         var scaledY = (y - 0.35f + orient * 0.15f) / 2.0f * 3.0f + 0.5f
@@ -158,9 +168,15 @@ class FloatingService : Service(), SensorEventListener {
         return Point((scaledX * screenWidth).toInt(), (scaledY * screenHeight).toInt())
     }
 
+    /*! kalman filter for trajectory smoothing */
+    private val mKFx = KalmanFilter(1.0f, 6.0f)
+    private val mKFy = KalmanFilter(1.0f, 6.0f)
+    /*! set floating cursor */
+    private var screenLoc = Point(0, 0)
     private fun setCursor(x: Float, y: Float) {
-        val screenLoc = finger2ScreenLoc(x, y)
-
+        val fx = mKFx.filter(x)
+        val fy = mKFy.filter(y)
+        screenLoc = finger2ScreenLoc(fx, fy)
         pointParams.x = screenLoc.x
         pointParams.y = screenLoc.y
         floatingServiceHandler.post(Runnable {
@@ -168,14 +184,7 @@ class FloatingService : Service(), SensorEventListener {
         })
     }
 
-    fun setPoseModel(m: Int) {
-        mPoseModel.setModel(m)
-    }
-
-    fun setAcceleration(a: Int) {
-        mPoseModel.setAccel(a)
-    }
-
+    /*! floating surface view */
     inner class PreviewSurfaceView {
         private var left: Int = 0
         private var top: Int = 0
@@ -183,41 +192,53 @@ class FloatingService : Service(), SensorEventListener {
         private var bottom: Int = 0
         private var defaultImageWidth: Int = 0
         private var defaultImageHeight: Int = 0
+        private var defaultCanvasWidth: Int = 0
+        private var defaultCanvasHeight: Int = 0
+        private fun setRect() {
+            val width: Int
+            val height: Int
+            if (defaultCanvasHeight > defaultCanvasWidth) {
+                val ratio = defaultImageHeight.toFloat() / defaultImageWidth
+                width = defaultCanvasWidth
+                left = 0
+                height = (defaultCanvasWidth * ratio).toInt()
+                top = (defaultCanvasHeight - height) / 2
+            } else {
+                val ratio = defaultImageWidth.toFloat() / defaultImageHeight
+                height = defaultCanvasHeight
+                top = 0
+                width = (defaultCanvasHeight * ratio).toInt()
+                left = (defaultCanvasWidth - width) / 2
+            }
+            right = left + width
+            bottom = top + height
+        }
         fun setPreviewSurfaceView(image: Bitmap) {
+            if (defaultImageWidth != image.width || defaultImageHeight != image.height) {
+                defaultImageWidth = image.width
+                defaultImageHeight = image.height
+                setRect()
+            }
+
             val holder = previewSV.holder
             val surfaceCanvas = holder.lockCanvas()
             surfaceCanvas?.let { canvas ->
-                if (defaultImageWidth != image.width || defaultImageHeight != image.height) {
-                    defaultImageWidth = image.width
-                    defaultImageHeight = image.height
-                    val width: Int
-                    val height: Int
-
-                    if (canvas.height > canvas.width) {
-                        val ratio = image.height.toFloat() / image.width
-                        width = canvas.width
-                        left = 0
-                        height = (canvas.width * ratio).toInt()
-                        top = (canvas.height - height) / 2
-                    } else {
-                        val ratio = image.width.toFloat() / image.height
-                        height = canvas.height
-                        top = 0
-                        width = (canvas.height * ratio).toInt()
-                        left = (canvas.width - width) / 2
-                    }
-                    right = left + width
-                    bottom = top + height
+                if (defaultCanvasWidth != canvas.width || defaultCanvasHeight != canvas.height) {
+                    defaultCanvasWidth = canvas.width
+                    defaultCanvasHeight = canvas.height
+                    setRect()
                 }
 
                 canvas.drawBitmap(
                     image, Rect(0, 0, image.width, image.height),
                     Rect(left, top, right, bottom), null)
+
                 holder.unlockCanvasAndPost(canvas)
             }
         }
     }
 
+    /*! floating window touch listener */
     inner class FloatingOnTouchListener : OnTouchListener {
         private var x = 0
         private var y = 0
@@ -246,15 +267,27 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
+    /*! adjust floating window size */
+    fun setCanvasSize() {
+        windowParams.width = 360
+        windowParams.height = 480
+        windowManager.updateViewLayout(previewSV, windowParams)
+    }
+
+    /*! gravity sensor callback */
     override fun onAccuracyChanged(p0: Sensor?, p1: Int) {}
     override fun onSensorChanged(p0: SensorEvent?) {
         if (p0?.sensor?.type == Sensor.TYPE_GRAVITY) {
-            orient = if (p0.values[0] > 7.0) 1
-            else if (p0.values[0] < -7.0) -1
-            else 0
+            orient = when {
+                p0.values[0] > 7.0 -> 1
+                p0.values[0] < -7.0 -> -1
+                else -> 0
+            }
         }
     }
 
+    /** touch related functions */
+    /*! simulate touch event */
     private fun mEventGenerator(event: Int, loc: Point = Point(0, 0)) {
         // we need superuser to generate global touch events
         val process = Runtime.getRuntime().exec("su")
@@ -267,9 +300,8 @@ class FloatingService : Service(), SensorEventListener {
                 dataOutputStream.writeBytes("input keyevent KEYCODE_BACK\n")
             }
             2-> {
-                val b = finger2ScreenLoc(mSlideBeginX, mSlideBeginY)
-                dataOutputStream.writeBytes("input touchscreen swipe ${b.x} ${b.y} ${loc.x} ${loc.y} 100\n")
-                Log.d(TAG, "mEventGenerator: swipe ${b.x} ${b.y} ${loc.x} ${loc.y}")
+                dataOutputStream.writeBytes("input touchscreen swipe ${swipeBeginLoc.x} ${swipeBeginLoc.y} ${loc.x} ${loc.y} 100\n")
+                Log.d(TAG, "mEventGenerator: swipe ${swipeBeginLoc.x} ${swipeBeginLoc.y} ${loc.x} ${loc.y}")
             }
         }
 
@@ -278,14 +310,14 @@ class FloatingService : Service(), SensorEventListener {
         process.outputStream.close()
     }
 
+    /*! touch detection */
     private enum class StateMachine {
         WAIT, DEFAULT, FIRST_BEND, FIRST_RELEASE, SECOND_BEND, SECOND_RELEASE,
         SWIPE_BEGIN,
     }
     private var pressState = StateMachine.WAIT
     private var pressCount = 0
-    private var mSlideBeginX = 0.0f
-    private var mSlideBeginY = 0.0f
+    private var swipeBeginLoc = Point(0, 0)
     private fun mTouchService(hand: Array<LandmarkProto.NormalizedLandmark>) {
         val bendThreshold = 0.7F
         val releaseThreshold = 0.25F
@@ -313,8 +345,7 @@ class FloatingService : Service(), SensorEventListener {
 
                 if (dis < swipeThreshold) {
                     pressState = StateMachine.SWIPE_BEGIN
-                    mSlideBeginX = hand[3].x
-                    mSlideBeginY = hand[3].y
+                    swipeBeginLoc = finger2ScreenLoc(hand[3].x, hand[3].y)
                     pressCount = 0
                 }
             }
@@ -331,7 +362,7 @@ class FloatingService : Service(), SensorEventListener {
                     pressState = StateMachine.SECOND_BEND
                     pressCount = 0
                 } else if (pressCount++ > 10) {
-                    mEventGenerator(0, finger2ScreenLoc(hand[3].x, hand[3].y)) // press
+                    mEventGenerator(0, screenLoc) // press
                     Log.d(TAG, "mProcessImage: press")
                     pressState = StateMachine.WAIT
                 }
@@ -351,9 +382,10 @@ class FloatingService : Service(), SensorEventListener {
             }
             StateMachine.SWIPE_BEGIN -> {
                 if (dis < swipeThreshold) {
-                    val move = (hand[3].x - mSlideBeginX) * (hand[3].x - mSlideBeginX) + (hand[3].y - mSlideBeginY) * (hand[3].y - mSlideBeginY)
-                    if (move > 5e-3 && (pressCount++ > 30 || move > 1e-2)) {
-                        Log.d(TAG, "mProcessImage: swipe")
+                    val move = (screenLoc.x - swipeBeginLoc.x) * (screenLoc.x - swipeBeginLoc.x) +
+                            (screenLoc.y - swipeBeginLoc.y) * (screenLoc.y - swipeBeginLoc.y)
+                    if (move > 1e4 && (pressCount++ > 20 || move > 8e4)) {
+                        Log.d(TAG, "mProcessImage: swipe $move")
                         mEventGenerator(2, finger2ScreenLoc(hand[3].x, hand[3].y))
                         pressState = StateMachine.WAIT
                     }
@@ -364,12 +396,9 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
-    private val mKFx = KalmanFilter(1.0f, 10.0f)
-    private val mKFy = KalmanFilter(1.0f, 10.0f)
-
+    /*! process the captured image */
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
-
         val persons = mPoseModel.estimatePoses(image, orient)
 
         // get score for pose detection
@@ -386,7 +415,7 @@ class FloatingService : Service(), SensorEventListener {
                 i.putExtra("dis", dis)
                 sendBroadcast(i)
             } else {
-                // no person
+                // no person detected
                 val i = Intent(ACTION_UPDATE_DIS)
                 i.putExtra("dis", -1F)
                 sendBroadcast(i)
@@ -399,9 +428,7 @@ class FloatingService : Service(), SensorEventListener {
             handBitmap = VisualizationUtils.drawHandKeyPoints(bodyBitmap, it)
             if (it.multiHandLandmarks().size > 0) {
                 val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
-                val x = mKFx.filter(li.x)
-                val y = mKFy.filter(li.y)
-                this.setCursor(x, y)
+                this.setCursor(li.x, li.y)
 
                 // thumb single/double taps for press/exit
                 val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],

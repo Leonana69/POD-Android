@@ -155,6 +155,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onStop() {
         super.onStop()
+        mFloatingService?.setCanvasSize()
         stopService(mIntentPUSS)
     }
 
@@ -231,11 +232,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 //                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
                         val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis < 75) {
+                    } else if (dis < 60) {
 //                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 1000u)
                         val cp: CommanderHoverPacket = CommanderHoverPacket(-0.1F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis > 85) {
+                    } else if (dis > 80) {
 //                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 3000u)
                         val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.5F)
                         mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
