@@ -447,7 +447,8 @@ class FloatingService : Service(), SensorEventListener {
                 val leftShoulderY = persons[0].keyPoints[5].coordinate.y
                 val rightShoulderY = persons[0].keyPoints[6].coordinate.y
                 var dis = (leftShoulderY + rightShoulderY) / 2.0f - (leftEyeY + rightEyeY) / 2.0f
-                dis = 110 - dis / 3.0f
+                Log.d(TAG, "mProcessImage: $dis")
+                dis = 0.0119F * dis * dis - 3.506F * dis + 306.97F
                 val i = Intent(ACTION_UPDATE_DIS)
                 i.putExtra("dis", dis)
                 sendBroadcast(i)

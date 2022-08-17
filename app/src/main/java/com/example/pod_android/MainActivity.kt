@@ -12,16 +12,19 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.example.pod_android.data.Device
@@ -252,23 +255,29 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 FloatingService.ACTION_UPDATE_DIS -> {
                     val dis: Float = p1.getFloatExtra("dis", 0.0f)
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
-                    if (dis == -1F) {
-                        // keep the height
-//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
-                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
-                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis < 60) {
-//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 1000u)
-                        val cp: CommanderHoverPacket = CommanderHoverPacket(-0.1F, 0F, 0F, 0.5F)
-                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else if (dis > 80) {
-//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 3000u)
-                        val cp: CommanderHoverPacket = CommanderHoverPacket(0.1F, 0F, 0F, 0.5F)
-                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
-                    } else {
-//                        val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
-                        val cp: CommanderHoverPacket = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
-                        mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+
+                    var cp: CommanderHoverPacket? = null
+                    when {
+                        dis == -1F -> {
+                            // keep the height
+                            // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 2000u)
+                            cp = CommanderHoverPacket(0F, 0F, 0F, 0.5F)
+                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                        }
+                        dis < 60 -> {
+                            // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 1000u)
+                            cp = CommanderHoverPacket(-0.1F, 0F, 0F, 0.5F)
+                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                        }
+                        dis > 80 -> {
+                             // val cp: CommanderPacket = CommanderPacket(0F, 0F, 0F, 3000u)
+                            cp = CommanderHoverPacket(0.1F, 0F, 0F, 0.5F)
+                            mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
+                        }
+                    }
+
+                    cp?.let {
+                        mPodUsbSerialService?.usbSendData((it as CrtpPacket).toByteArray())
                     }
                 }
 
