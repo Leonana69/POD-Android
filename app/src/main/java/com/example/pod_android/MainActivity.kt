@@ -1,13 +1,16 @@
 package com.example.pod_android
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.Dialog
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
@@ -16,6 +19,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.DialogFragment
@@ -33,6 +37,10 @@ import com.example.pod_android.pose.PoseNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.w3c.dom.Text
+import java.io.File
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.log
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
@@ -48,6 +56,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var mBtnStart: Button
     private lateinit var mBtnStop: Button
     private lateinit var mBtnCnt: Button
+    private lateinit var mBtnClick: Button
 
     private lateinit var mIntentFS: Intent
     private lateinit var mIntentPUSS: Intent
@@ -128,10 +137,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         mBtnStart = findViewById(R.id.btn_start)
         mBtnStop = findViewById(R.id.btn_stop)
         mBtnCnt = findViewById(R.id.btn_cnt)
+        mBtnClick = findViewById(R.id.btn_click)
 
         mBtnStart.setOnClickListener(this)
         mBtnStop.setOnClickListener(this)
         mBtnCnt.setOnClickListener(this)
+        mBtnClick.setOnClickListener(this)
 
         initSpinner()
         spnModel.setSelection(defaultModelPosition)
@@ -202,6 +213,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onClick(p0: View?) {
         when (p0?.id) {
             R.id.btn_start -> {
@@ -221,6 +233,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             }
             R.id.btn_cnt -> {
                 mPodUsbSerialService?.usbStartConnection()
+            }
+            R.id.btn_click -> {
+                mFloatingService?.saveCapture()
+                Toast.makeText(this, "Photo captured!", Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -2,6 +2,8 @@ package com.example.pod_android
 
 import android.annotation.SuppressLint
 import android.app.Service
+import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
@@ -9,14 +11,14 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Binder
-import android.os.Handler
-import android.os.IBinder
-import android.os.Looper
+import android.os.*
+import android.os.Environment.getExternalStoragePublicDirectory
+import android.provider.MediaStore
 import android.util.Log
 import android.view.*
 import android.view.View.OnTouchListener
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import com.example.pod_android.data.KalmanFilter
 import com.example.pod_android.hand.MediapipeHands
 import com.example.pod_android.image.CameraSource
@@ -27,8 +29,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.io.DataOutputStream
+import java.io.*
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.sqrt
+
 
 class FloatingService : Service(), SensorEventListener {
     companion object {
@@ -56,6 +61,8 @@ class FloatingService : Service(), SensorEventListener {
     private lateinit var cameraSource: CameraSource
     private val job = SupervisorJob()
     private val mCoroutineScope = CoroutineScope(Dispatchers.IO + job)
+
+    private var currentCapture: Bitmap? = null
 
     class DrawView(context: Context?): View(context) {
         @SuppressLint("DrawAllocation")
@@ -96,10 +103,10 @@ class FloatingService : Service(), SensorEventListener {
         windowParams.format = PixelFormat.RGBA_8888
         windowParams.gravity = Gravity.START or Gravity.TOP
         windowParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        windowParams.width = 720
-        windowParams.height = 960
-        windowParams.x = 0
-        windowParams.y = 300
+        windowParams.width = 900
+        windowParams.height = 1200
+        windowParams.x = 90
+        windowParams.y = 150
 
         overlay = DrawView(this)
         previewSV = SurfaceView(this)
@@ -116,6 +123,7 @@ class FloatingService : Service(), SensorEventListener {
 
         cameraSource = CameraSource(this, object: CameraSource.CameraSourceListener {
             override fun processImage(image: Bitmap) {
+                currentCapture = image.copy(image.config, true)
                 mProcessImage(image)
             }
 
@@ -155,6 +163,25 @@ class FloatingService : Service(), SensorEventListener {
 
     fun setAcceleration(a: Int) {
         mPoseModel.setAccel(a)
+    }
+
+    /*! capture and save and photo */
+    @SuppressLint("SimpleDateFormat")
+    @RequiresApi(Build.VERSION_CODES.Q)
+    fun saveCapture() {
+        if (currentCapture != null) {
+            val contentValues = ContentValues()
+            val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+            contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, "CAPTURE_${timeStamp}")
+            contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, "DCIM/Camera")
+            val imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            val fOut = contentResolver.openOutputStream(imageUri!!)!!
+
+            currentCapture?.compress(Bitmap.CompressFormat.JPEG, 85, fOut)
+            fOut.flush()
+            fOut.close()
+        }
     }
 
     /** floating window */
@@ -275,8 +302,10 @@ class FloatingService : Service(), SensorEventListener {
                 windowParams.height = 480
             }
             1-> {
-                windowParams.width = 720
-                windowParams.height = 960
+                windowParams.x = 90
+                windowParams.y = 150
+                windowParams.width = 900
+                windowParams.height = 1200
             }
         }
         windowManager.updateViewLayout(previewSV, windowParams)
@@ -371,7 +400,7 @@ class FloatingService : Service(), SensorEventListener {
                     pressCount = 0
                 } else if (pressCount++ > 15) {
                     mEventGenerator(0, screenLoc) // press
-                    Log.d(TAG, "mProcessImage: press")
+                    Log.d(TAG, "mTouchService: press")
                     pressState = StateMachine.WAIT
                 }
             }
@@ -385,7 +414,7 @@ class FloatingService : Service(), SensorEventListener {
             }
             StateMachine.SECOND_RELEASE -> {
                 mEventGenerator(1) // back
-                Log.d(TAG, "mProcessImage: back")
+                Log.d(TAG, "mTouchService: back")
                 pressState = StateMachine.WAIT
             }
             StateMachine.SWIPE_BEGIN -> {
@@ -393,7 +422,7 @@ class FloatingService : Service(), SensorEventListener {
                     val move = (screenLoc.x - swipeBeginLoc.x) * (screenLoc.x - swipeBeginLoc.x) +
                             (screenLoc.y - swipeBeginLoc.y) * (screenLoc.y - swipeBeginLoc.y)
                     if (move > 1e4 && (pressCount++ > 20 || move > 8e4)) {
-                        Log.d(TAG, "mProcessImage: swipe $move")
+                        Log.d(TAG, "mTouchService: swipe $move")
                         mEventGenerator(2, finger2ScreenLoc(hand[3].x, hand[3].y))
                         pressState = StateMachine.WAIT
                     }
