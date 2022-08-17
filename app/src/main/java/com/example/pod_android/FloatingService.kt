@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 
@@ -433,6 +434,8 @@ class FloatingService : Service(), SensorEventListener {
         }
     }
 
+    /*! kalman filter for distance filtering */
+    private val mKFDis = KalmanFilter(1.0f, 3.0f)
     /*! process the captured image */
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
@@ -442,13 +445,27 @@ class FloatingService : Service(), SensorEventListener {
         if (persons.isNotEmpty()) {
             if (persons[0].score > 0.3f) {
                 // this distance estimation should be calibrated
-                val leftEyeY = persons[0].keyPoints[1].coordinate.y
-                val rightEyeY = persons[0].keyPoints[2].coordinate.y
-                val leftShoulderY = persons[0].keyPoints[5].coordinate.y
-                val rightShoulderY = persons[0].keyPoints[6].coordinate.y
-                var dis = (leftShoulderY + rightShoulderY) / 2.0f - (leftEyeY + rightEyeY) / 2.0f
-                Log.d(TAG, "mProcessImage: $dis")
-                dis = 0.0119F * dis * dis - 3.506F * dis + 306.97F
+                var leftEyeY: Float = 0F
+                var rightEyeY: Float = 0F
+                var leftShoulderY: Float = 0F
+                var rightShoulderY: Float = 0F
+
+                if (orient != 0) {
+                    leftEyeY = persons[0].keyPoints[1].coordinate.x
+                    rightEyeY = persons[0].keyPoints[2].coordinate.x
+                    leftShoulderY = persons[0].keyPoints[5].coordinate.x
+                    rightShoulderY = persons[0].keyPoints[6].coordinate.x
+                } else {
+                    leftEyeY = persons[0].keyPoints[1].coordinate.y
+                    rightEyeY = persons[0].keyPoints[2].coordinate.y
+                    leftShoulderY = persons[0].keyPoints[5].coordinate.y
+                    rightShoulderY = persons[0].keyPoints[6].coordinate.y
+                }
+
+                var dis = (leftShoulderY + rightShoulderY) / 2.0F - (leftEyeY + rightEyeY) / 2.0F
+
+                dis = 21348 * dis.pow(-1.223F)
+                dis = mKFDis.filter(dis)
                 val i = Intent(ACTION_UPDATE_DIS)
                 i.putExtra("dis", dis)
                 sendBroadcast(i)
