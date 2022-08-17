@@ -32,7 +32,7 @@ import com.example.pod_android.droneOnUsb.CommanderHoverPacket
 import com.example.pod_android.droneOnUsb.CommanderPacket
 import com.example.pod_android.droneOnUsb.CrtpPacket
 import com.example.pod_android.droneOnUsb.PodUsbSerialService
-import com.example.pod_android.hand.MediapipeHands
+import com.example.pod_android.hand.MediaPipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.pose.ModelType
 import com.example.pod_android.pose.MoveNet
@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private lateinit var tvScore: TextView
     private lateinit var tvFPS: TextView
+    private lateinit var tvFace: TextView
     private lateinit var tvUsbDev: TextView
     private lateinit var spnDevice: Spinner
     private lateinit var spnModel: Spinner
@@ -134,6 +135,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // find elements
         tvScore = findViewById(R.id.tvScore)
         tvFPS = findViewById(R.id.tvFps)
+        tvFace = findViewById(R.id.tvFace)
         tvUsbDev = findViewById(R.id.tvUsbDev)
         spnModel = findViewById(R.id.spnModel)
         spnDevice = findViewById(R.id.spnDevice)
@@ -154,6 +156,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         val filter = IntentFilter()
         filter.addAction(FloatingService.ACTION_UPDATE_FPS)
         filter.addAction(FloatingService.ACTION_UPDATE_DIS)
+        filter.addAction(FloatingService.ACTION_UPDATE_FACE)
         filter.addAction(PodUsbSerialService.ACTION_USB_CONNECTED)
         registerReceiver(mBroadcastReceiver, filter)
 
@@ -244,6 +247,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    private var distanceBase = 0
     private val mBroadcastReceiver = object: BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
             when (p1?.action) {
@@ -252,20 +256,31 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     tvFPS.text = getString(R.string.tfe_pe_tv_fps, fps)
                 }
 
+                FloatingService.ACTION_UPDATE_FACE -> {
+                    val face = p1.getIntExtra("face", 0)
+                    if (face == 1) {
+                        tvFace.text = getString(R.string.tfe_pe_tv_face, "Smile")
+                    } else {
+                        tvFace.text = getString(R.string.tfe_pe_tv_face, "Neutral")
+                    }
+
+                    distanceBase = face * 25
+                }
+
                 FloatingService.ACTION_UPDATE_DIS -> {
                     val dis: Float = p1.getFloatExtra("dis", 0.0F)
                     val hor: Float = p1.getFloatExtra("hor", 0.0F)
                     tvScore.text = getString(R.string.tfe_pe_tv_dis, dis)
 
                     var vx: Float = 0F
-                    var vy: Float = 0F
+                    val vy: Float = 0F
                     var vyaw: Float = 0F
 
                     when {
-                        dis > 0 && dis < 60 -> {
+                        dis > 0 && dis < 70 - distanceBase  -> {
                             vx = -0.15F
                         }
-                        dis > 80 -> {
+                        dis > 90 - distanceBase -> {
                             vx = 0.15F
                         }
                     }
@@ -278,7 +293,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                             vyaw = 10F
                         }
                     }
-//                    Log.d(TAG, "onReceive: $vx $vy $vyaw")
+                    Log.d(TAG, "onReceive: $vx $vy $vyaw")
                     val cp = CommanderHoverPacket(vx, vy, vyaw, 0.5F)
                     mPodUsbSerialService?.usbSendData((cp as CrtpPacket).toByteArray())
 

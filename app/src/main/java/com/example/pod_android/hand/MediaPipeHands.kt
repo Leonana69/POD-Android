@@ -14,7 +14,7 @@ import com.google.mediapipe.solutions.hands.HandsResult
 
 class MediaPipeHands(private val context: Context) {
     companion object {
-        private const val TAG = "Mediapipe Hands"
+        private const val TAG = "MediaPipe Hands"
     }
 
     private var hands: Hands = Hands(
@@ -36,13 +36,13 @@ class MediaPipeHands(private val context: Context) {
     var handsResult: HandsResult? = null
 
     init {
-        Log.d(Companion.TAG, "init hand detector")
+        Log.d(TAG, "init hand detector")
         // Connects MediaPipe Hands solution to the user-defined HandsResultImageView.
         hands.setResultListener { handsResult: HandsResult? ->
             this.handsResult = handsResult
             done = true
         }
-        hands.setErrorListener { message: String, _: RuntimeException? -> Log.e(Companion.TAG, "MediaPipe Hands error:$message") }
+        hands.setErrorListener { message: String, _: RuntimeException? -> Log.e(TAG, "MediaPipe Hands Error:$message") }
     }
 
     fun estimateHands(bitmap: Bitmap) {

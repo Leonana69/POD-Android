@@ -5,11 +5,17 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.Log
+import android.util.Size
 import com.example.pod_android.data.BodyPart
 import com.example.pod_android.data.Person
+import com.google.common.collect.ImmutableSet
 import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark
+import com.google.mediapipe.solutions.facemesh.FaceMesh
+import com.google.mediapipe.solutions.facemesh.FaceMeshConnections
+import com.google.mediapipe.solutions.facemesh.FaceMeshResult
 import com.google.mediapipe.solutions.hands.Hands
 import com.google.mediapipe.solutions.hands.HandsResult
+
 
 object VisualizationUtils {
     private fun paintCircle(c: Int) = Paint().apply {
@@ -84,6 +90,133 @@ object VisualizationUtils {
             }
         }
         return output
+    }
+
+    /*! face mesh visualization */
+    private val TESSELATION_COLOR: Int = Color.parseColor("#70C0C0C0")
+    private const val TESSELATION_THICKNESS = 1 // Pixels
+    private val RIGHT_EYE_COLOR: Int = Color.parseColor("#FF3030")
+    private const val RIGHT_EYE_THICKNESS = 1 // Pixels
+    private val RIGHT_EYEBROW_COLOR: Int = Color.parseColor("#FF3030")
+    private const val RIGHT_EYEBROW_THICKNESS = 1 // Pixels
+    private val LEFT_EYE_COLOR: Int = Color.parseColor("#30FF30")
+    private const val LEFT_EYE_THICKNESS = 1 // Pixels
+    private val LEFT_EYEBROW_COLOR: Int = Color.parseColor("#30FF30")
+    private const val LEFT_EYEBROW_THICKNESS = 1 // Pixels
+    private val FACE_OVAL_COLOR: Int = Color.parseColor("#E0E0E0")
+    private const val FACE_OVAL_THICKNESS = 1 // Pixels
+    private val LIPS_COLOR: Int = Color.parseColor("#E0E0E0")
+    private const val LIPS_THICKNESS = 1 // Pixels
+    fun drawFaceMeshPoints(input: Bitmap, faceMesh: FaceMeshResult): Bitmap {
+        val output = input.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(output)
+        val width = output.width
+        val height = output.height
+        val imageSize = Size(width, height)
+        val numFaces: Int = faceMesh.multiFaceLandmarks().size
+        for (i in 0 until numFaces) {
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_TESSELATION,
+                imageSize,
+                TESSELATION_COLOR,
+                TESSELATION_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_RIGHT_EYE,
+                imageSize,
+                RIGHT_EYE_COLOR,
+                RIGHT_EYE_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_RIGHT_EYEBROW,
+                imageSize,
+                RIGHT_EYEBROW_COLOR,
+                RIGHT_EYEBROW_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_LEFT_EYE,
+                imageSize,
+                LEFT_EYE_COLOR,
+                LEFT_EYE_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_LEFT_EYEBROW,
+                imageSize,
+                LEFT_EYEBROW_COLOR,
+                LEFT_EYEBROW_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_FACE_OVAL,
+                imageSize,
+                FACE_OVAL_COLOR,
+                FACE_OVAL_THICKNESS
+            )
+            drawLandmarksOnCanvas(
+                canvas,
+                faceMesh.multiFaceLandmarks()[i].landmarkList,
+                FaceMeshConnections.FACEMESH_LIPS,
+                imageSize,
+                LIPS_COLOR,
+                LIPS_THICKNESS
+            )
+            if (faceMesh.multiFaceLandmarks()[i].landmarkCount == FaceMesh.FACEMESH_NUM_LANDMARKS_WITH_IRISES) {
+                drawLandmarksOnCanvas(
+                    canvas,
+                    faceMesh.multiFaceLandmarks()[i].landmarkList,
+                    FaceMeshConnections.FACEMESH_RIGHT_IRIS,
+                    imageSize,
+                    RIGHT_EYE_COLOR,
+                    RIGHT_EYE_THICKNESS
+                )
+                drawLandmarksOnCanvas(
+                    canvas,
+                    faceMesh.multiFaceLandmarks()[i].landmarkList,
+                    FaceMeshConnections.FACEMESH_LEFT_IRIS,
+                    imageSize,
+                    LEFT_EYE_COLOR,
+                    LEFT_EYE_THICKNESS
+                )
+            }
+        }
+
+        return output
+    }
+
+    private fun drawLandmarksOnCanvas(
+        canvas: Canvas,
+        faceLandmarkList: List<NormalizedLandmark>,
+        connections: ImmutableSet<FaceMeshConnections.Connection>,
+        imageSize: Size,
+        color: Int,
+        thickness: Int
+    ) {
+        // Draw connections.
+        for (c in connections) {
+            val connectionPaint = Paint()
+            connectionPaint.color = color
+            connectionPaint.strokeWidth = thickness.toFloat()
+            val start = faceLandmarkList[c.start()]
+            val end = faceLandmarkList[c.end()]
+            canvas.drawLine(
+                start.x * imageSize.width,
+                start.y * imageSize.height,
+                end.x * imageSize.width,
+                end.y * imageSize.height,
+                connectionPaint
+            )
+        }
     }
 
     // Draw line and point indicate body pose

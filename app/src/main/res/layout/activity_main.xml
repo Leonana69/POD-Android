@@ -49,6 +49,14 @@
             android:layout_marginHorizontal="5dp"
             android:textSize="18sp"
             android:layout_weight="50" />
+
+        <TextView
+            android:id="@+id/tvFace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="5dp"
+            android:textSize="18sp"
+            android:layout_weight="50" />
         </LinearLayout>
 
         <LinearLayout

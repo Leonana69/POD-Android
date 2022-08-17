@@ -5,6 +5,7 @@
     <string name="tfe_pe_tv_dis">Dis: %.0fcm</string>
     <string name="tfe_pe_tv_model">Model: </string>
     <string name="tfe_pe_tv_fps">Fps: %d</string>
+    <string name="tfe_pe_tv_face">Face: %s</string>
     <string name="tfe_pe_tv_device">Device: </string>
     <string name="tfe_pe_tv_classification_value">- %s</string>
     <string name="tfe_pe_tv_pose_classification">Pose Classification</string>

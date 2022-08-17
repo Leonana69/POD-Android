@@ -20,6 +20,7 @@ import android.view.View.OnTouchListener
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import com.example.pod_android.data.KalmanFilter
+import com.example.pod_android.face.MediaPipeFaceMesh
 import com.example.pod_android.hand.MediaPipeHands
 import com.example.pod_android.image.CameraSource
 import com.example.pod_android.image.VisualizationUtils
@@ -40,6 +41,7 @@ class FloatingService : Service(), SensorEventListener {
     companion object {
         const val ACTION_UPDATE_FPS: String = "actionUpdateFps"
         const val ACTION_UPDATE_DIS: String = "actionUpdateDis"
+        const val ACTION_UPDATE_FACE: String = "actionUpdateFace"
 
     }
     private val TAG: String = "FloatingService"
@@ -55,6 +57,7 @@ class FloatingService : Service(), SensorEventListener {
     private var orient = 0
     private lateinit var mPoseModel: PoseModel
     private lateinit var mHandModel: MediaPipeHands
+    private lateinit var mFaceMeshModel: MediaPipeFaceMesh
 
     private lateinit var overlay: View
     private lateinit var previewSV: SurfaceView
@@ -117,6 +120,7 @@ class FloatingService : Service(), SensorEventListener {
 
         mPoseModel = PoseModel(applicationContext)
         mHandModel = MediaPipeHands(applicationContext)
+        mFaceMeshModel = MediaPipeFaceMesh(applicationContext)
 
         // detect phone rotation
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -153,6 +157,7 @@ class FloatingService : Service(), SensorEventListener {
         cameraSource.closeCamera()
         mPoseModel.close()
         mHandModel.close()
+        mFaceMeshModel.close()
         windowManager.removeView(overlay)
         windowManager.removeView(previewSV)
         job.cancel()
@@ -440,6 +445,7 @@ class FloatingService : Service(), SensorEventListener {
     /*! process the captured image */
     fun mProcessImage(image: Bitmap) {
         mHandModel.estimateHands(image)
+//        mFaceMeshModel.estimateFaceMesh(image)
         val persons = mPoseModel.estimatePoses(image, orient)
 
         // get score for pose detection
@@ -461,15 +467,11 @@ class FloatingService : Service(), SensorEventListener {
                     rightEyeY = persons[0].keyPoints[2].coordinate.x
                     leftShoulderY = persons[0].keyPoints[5].coordinate.x
                     rightShoulderY = persons[0].keyPoints[6].coordinate.x
-
-
                 } else {
                     leftEyeY = persons[0].keyPoints[1].coordinate.y
                     rightEyeY = persons[0].keyPoints[2].coordinate.y
                     leftShoulderY = persons[0].keyPoints[5].coordinate.y
                     rightShoulderY = persons[0].keyPoints[6].coordinate.y
-
-
                 }
 
                 when (orient) {
@@ -539,5 +541,40 @@ class FloatingService : Service(), SensorEventListener {
             }
         }
         handBitmap?.let { psv.setPreviewSurfaceView(it) }
+
+//        var faceMeshBitmap: Bitmap? = null
+//        mFaceMeshModel.faceMeshResult?.let {
+//            faceMeshBitmap = VisualizationUtils.drawFaceMeshPoints(bodyBitmap, it)
+//
+//            if (it.multiFaceLandmarks().size > 0) {
+//                // mid: 12, left: 61, right: 291
+//                val mid = it.multiFaceLandmarks()[0].landmarkList[12]
+//                val left = it.multiFaceLandmarks()[0].landmarkList[61]
+//                val right = it.multiFaceLandmarks()[0].landmarkList[291]
+//                var diff: Float = 0F
+//                when (orient) {
+//                    0 -> {
+//                        diff = (right.y + left.y) / 2.0F - mid.y
+//                    }
+//                    -1 -> {
+//                        diff = (right.x + left.x) / 2.0F - mid.x
+//                    }
+//                    1 -> {
+//                        diff = (2 - right.x - left.x) / 2.0F + mid.x - 1F
+//                    }
+//                }
+//
+//                val i = Intent(ACTION_UPDATE_FACE)
+//                if (diff < 0.004F) {
+//                    // smile
+//                    i.putExtra("face", 1)
+//                } else {
+//                    i.putExtra("face", 0)
+//                }
+//
+//                sendBroadcast(i)
+//            }
+//        }
+//        faceMeshBitmap?.let { psv.setPreviewSurfaceView(it) }
     }
 }

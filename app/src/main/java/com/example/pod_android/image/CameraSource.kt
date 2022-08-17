@@ -26,7 +26,7 @@ import androidx.core.content.ContextCompat
 import com.example.pod_android.FloatingService
 import com.example.pod_android.pose.PoseDetector
 import com.example.pod_android.data.Person
-import com.example.pod_android.hand.MediapipeHands
+import com.example.pod_android.hand.MediaPipeHands
 import com.google.android.renderscript.Toolkit
 import com.google.android.renderscript.YuvFormat
 import kotlinx.coroutines.suspendCancellableCoroutine
