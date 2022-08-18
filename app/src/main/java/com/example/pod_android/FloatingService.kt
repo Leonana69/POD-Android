@@ -525,10 +525,12 @@ class FloatingService : Service(), SensorEventListener {
             if (it.multiHandLandmarks().size > 0) {
                 val li = it.multiHandLandmarks()[0].landmarkList[8] // index tip
 
+                Log.d(TAG, "mProcessImage: " + it.multiHandLandmarks()[0].landmarkList[4].z)
+
                 // do not respond if hand is faraway
                 val handSize = (it.multiHandLandmarks()[0].landmarkList[0].x - it.multiHandLandmarks()[0].landmarkList[5].x).pow(2) +
                     (it.multiHandLandmarks()[0].landmarkList[0].y - it.multiHandLandmarks()[0].landmarkList[5].y).pow(2)
-                if (handSize > 0.005) {
+                if (handSize > 0.006) {
                     this.setCursor(li.x, li.y)
                     // thumb single/double taps for press/exit
                     val thumbLoc = arrayOf(it.multiHandLandmarks()[0].landmarkList[2],

@@ -7,11 +7,9 @@ import android.app.Dialog
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.Environment
-import android.os.IBinder
+import android.os.*
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
@@ -219,6 +217,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    private var mBtnClickState = false
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun onClick(p0: View?) {
         when (p0?.id) {
@@ -241,8 +240,25 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 mPodUsbSerialService?.usbStartConnection()
             }
             R.id.btn_click -> {
-                mFloatingService?.saveCapture()
-                Toast.makeText(this, "Photo captured!", Toast.LENGTH_SHORT).show()
+                if (!mBtnClickState) {
+                    mBtnClickState = true
+                    mBtnClick.text = "3"
+                    mBtnClick.textSize = 60F
+                    mBtnClick.setTextColor(0xFFFFFFFF.toInt())
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        mBtnClick.text = "2"
+                    }, 1000)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        mBtnClick.text = "1"
+                    }, 2000)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        mFloatingService?.saveCapture()
+                        mBtnClick.textSize = 18F
+                        mBtnClick.text = getString(R.string.btn_round)
+                        mBtnClickState = false
+                        mBtnClick.setTextColor(0xFF000000.toInt())
+                    }, 3000)
+                }
             }
         }
     }

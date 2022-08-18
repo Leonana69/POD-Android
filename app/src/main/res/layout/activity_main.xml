@@ -129,7 +129,6 @@
                 android:layout_marginHorizontal="5dp"
                 android:text="@string/btn_cnt"
                 android:layout_weight="50"
-
                 />
         </LinearLayout>
         <Button
