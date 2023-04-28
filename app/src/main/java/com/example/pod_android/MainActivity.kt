@@ -293,10 +293,10 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                     var vyaw: Float = 0F
 
                     when {
-                        dis > 0 && dis < 70 - distanceBase  -> {
+                        dis > 0 && dis < 90 - distanceBase  -> {
                             vx = -0.15F
                         }
-                        dis > 90 - distanceBase -> {
+                        dis > 110 - distanceBase -> {
                             vx = 0.15F
                         }
                     }
